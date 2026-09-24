@@ -188,43 +188,61 @@ export default function Home() {
       )}
 
       {REVIEWS.length > 0 && (
-        <section className="px-4 py-16 sm:px-8 sm:py-20">
-          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:gap-14">
-            <div className="lg:pt-2">
+        <section className="overflow-hidden py-16 sm:py-20">
+          <div className="px-4 sm:px-8">
+          <div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div>
               <h2 className="site-display text-2xl leading-tight text-brand-700 sm:text-3xl">
-                Loved by guests
-                <br className="hidden sm:block" /> who stayed with us.
+                Loved by guests who stayed with us.
               </h2>
-              <p className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-ink">
+              <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-ink">
                 <ThumbsUp className="size-4 text-brand-700" /> {RECOMMEND.percent}% recommend · {RECOMMEND.count} reviews
+                on Facebook
               </p>
-              <p className="mt-2 max-w-xs text-sm text-ink-muted">Real recommendations from guests on our Facebook page.</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-3">
               <a
                 href={s?.facebook_url || SITE.facebook}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="mt-2 inline-block text-sm font-medium text-brand-700 underline underline-offset-4"
+                className="inline-flex h-10 items-center rounded-full border border-sand-300 px-5 text-sm font-medium text-ink transition-colors hover:bg-sand-100"
               >
                 Read them on Facebook
               </a>
               <Link
                 to="/#stay"
-                className="mt-6 hidden h-10 items-center rounded-full bg-brand-700 px-6 text-sm font-medium text-sand-50 shadow-level-2 hover:bg-brand-700/90 lg:inline-flex"
+                className="inline-flex h-10 items-center rounded-full bg-brand-700 px-6 text-sm font-medium text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90"
               >
                 Book Now
               </Link>
             </div>
-            <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-2 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
-              {REVIEWS.map((r) => (
-                <div key={r.author} className="w-[85%] shrink-0 snap-start sm:w-[calc(50%-0.625rem)] xl:w-[calc(33.333%-0.84rem)]">
-                  <ReviewCard {...r} />
-                </div>
-              ))}
-            </div>
           </div>
+          </div>
+          <ReviewMarquee />
         </section>
       )}
     </>
+  );
+}
+
+/**
+ * The reviews drift left on a loop and stop while hovered or focused. The list
+ * is drawn twice so the loop has no seam; the copy is hidden from screen
+ * readers. With reduced motion it is a plain scrollable row instead.
+ */
+function ReviewMarquee() {
+  const card = (r: (typeof REVIEWS)[number], copy: boolean) => (
+    <div key={`${copy ? "b" : "a"}-${r.author}`} className="w-[300px] shrink-0 sm:w-[360px]" aria-hidden={copy || undefined}>
+      <ReviewCard {...r} />
+    </div>
+  );
+  return (
+    <div className="marquee group relative mt-10 [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]">
+      <div className="marquee-track flex w-max gap-5 py-2 group-hover:[animation-play-state:paused] group-focus-within:[animation-play-state:paused]">
+        {REVIEWS.map((r) => card(r, false))}
+        {REVIEWS.map((r) => card(r, true))}
+      </div>
+    </div>
   );
 }
 

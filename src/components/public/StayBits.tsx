@@ -19,7 +19,9 @@ export function ReviewCard({ author, month, body }: { author: string; month: str
           <ThumbsUp className="size-3" /> Recommends
         </span>
       </div>
-      <blockquote className="mt-4 flex-1 text-sm leading-relaxed text-ink-muted">{body}</blockquote>
+      <blockquote className="mt-4 line-clamp-7 flex-1 text-sm leading-relaxed text-ink-muted" title={body}>
+        {body}
+      </blockquote>
       <figcaption className="mt-6 flex items-center gap-3 border-t border-sand-200/60 pt-5">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-700 font-display text-xs font-semibold text-sand-50">
           {author.slice(0, 1)}

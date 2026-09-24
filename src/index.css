@@ -118,6 +118,32 @@
   scrollbar-color: oklch(0.81 0.007 100) transparent;
 }
 
+/* Review marquee: the track holds the list twice, so moving it by half loops seamlessly. */
+.marquee-track {
+  animation: marquee 70s linear infinite;
+}
+.marquee-track > * + * {
+  margin-left: 0;
+}
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-50% - 0.625rem));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee {
+    overflow-x: auto;
+    mask-image: none;
+  }
+  .marquee-track {
+    animation: none;
+    padding-inline: 1rem;
+  }
+}
+
 /* Diagonal hatch for blocked dates on the calendar. */
 .hatch {
   background-image: repeating-linear-gradient(135deg, oklch(0.22 0 0 / 0.14) 0 2px, transparent 2px 7px);
