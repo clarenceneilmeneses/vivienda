@@ -10,7 +10,8 @@ if (!url || !key) {
 export const supabase = createClient(url, key);
 
 export function photoUrl(path: string) {
-  if (/^https?:\/\//.test(path)) return path;
+  // Full URLs and files shipped with the site (/images/…) are used as they are.
+  if (/^https?:\/\//.test(path) || path.startsWith("/")) return path;
   return supabase.storage.from("unit-photos").getPublicUrl(path).data.publicUrl;
 }
 

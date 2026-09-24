@@ -1,16 +1,29 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { addDays } from "date-fns";
-import { BedDouble, CalendarDays, Check, ChevronDown, FileText, Upload, Users } from "lucide-react";
-import { errorMessage, photoUrl, supabase } from "../../lib/supabase";
-import { nightlyRate, useRateOverrides, useSettings, useUnavailableNights, useUnits } from "../../lib/queries";
-import { compactMoney, isoDate, money, plural, prettyDate, prettyTime } from "../../lib/format";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Clock,
+  Info,
+  Landmark,
+  Loader2,
+  Lock,
+  MapPin,
+  Moon,
+  Upload,
+  Users,
+} from "lucide-react";
+import { errorMessage, supabase } from "../../lib/supabase";
+import { useSettings, useUnits } from "../../lib/queries";
+import { money, nightsBetween, plural, prettyDate } from "../../lib/format";
 import { sendBookingEmail } from "../../lib/email";
+import { LOCATION_LABEL } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import type { PaymentMethod, Quote } from "../../lib/types";
-import { RangeCalendar, type DateRange } from "../../components/RangeCalendar";
-import { Button, EmptyState, ErrorBox, Field, Input, Spinner, Textarea } from "../../components/ui";
+import { ErrorBox, Field, Input, Spinner, Textarea } from "../../components/ui";
+import { unitPhotos } from "../../components/public/StayBits";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -24,36 +37,28 @@ type PayChoice = PaymentMethod | "later";
 
 export default function Book() {
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const { data: settings } = useSettings();
   const { data: allUnits, isLoading } = useUnits();
   const units = useMemo(() => (allUnits ?? []).filter((u) => u.is_active), [allUnits]);
 
   const unit = units.find((u) => u.slug === params.get("unit")) ?? (units.length === 1 ? units[0] : undefined);
-  const today = isoDate(new Date());
-  const horizon = isoDate(addDays(new Date(), 400));
-  const { data: unavailable } = useUnavailableNights(unit?.id, today, horizon);
-  const { data: overrides } = useRateOverrides(unit?.id);
 
-  const [range, setRange] = useState<DateRange>({ checkIn: null, checkOut: null });
-  const [guests, setGuests] = useState(2);
+  // Dates and guests arrive from the stay page; changing them means going back there.
+  const range = { checkIn: params.get("in"), checkOut: params.get("out") };
+  const guests = Math.max(1, Math.min(Number(params.get("guests")) || 2, unit?.max_guests ?? 99));
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [requests, setRequests] = useState("");
   const [pay, setPay] = useState<PayChoice>("gcash");
+  const [amount, setAmount] = useState<"down" | "full">("down");
   const [receipt, setReceipt] = useState<File | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [showAgreement, setShowAgreement] = useState(false);
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // Reset dates when switching rooms; clamp guests to what the room holds.
-  useEffect(() => {
-    setRange({ checkIn: null, checkOut: null });
-    if (unit) setGuests((g) => Math.min(Math.max(g, 1), unit.max_guests));
-  }, [unit?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: quote, isFetching: quoting } = useQuery({
     queryKey: ["quote", unit?.id, range.checkIn, range.checkOut, guests],
@@ -83,10 +88,10 @@ export default function Book() {
     if (pay === "gcash" && !hasGcash) setPay(hasBank ? "bank_transfer" : "later");
   }, [settings, hasGcash, hasBank, pay]);
 
-  const downpayment = quote ? Math.ceil((quote.total * (settings?.downpayment_percent ?? 50)) / 100) : 0;
+  const downPercent = settings?.downpayment_percent ?? 50;
+  const downpayment = quote ? Math.ceil((quote.total * downPercent) / 100) : 0;
 
   const errors = {
-    dates: !range.checkIn || !range.checkOut ? "Pick your check-in and check-out dates." : null,
     name: name.trim() ? null : "Please enter your full name.",
     email: EMAIL_RE.test(email.trim()) ? null : "Please enter a valid email so we can send your confirmation.",
     phone: validPhone(phone) ? null : "Enter a mobile number, e.g. 0917 123 4567 or +44 7700 900123.",
@@ -119,7 +124,9 @@ export default function Book() {
         p_full_name: name.trim(),
         p_email: email.trim(),
         p_phone: phone.trim(),
-        p_special_requests: requests.trim(),
+        p_special_requests: [requests.trim(), pay !== "later" && amount === "full" ? "Paying in full." : ""]
+          .filter(Boolean)
+          .join(" "),
         p_payment_method: pay === "later" ? null : pay,
         p_receipt_path: receiptPath,
         p_waiver_accepted: agreed,
@@ -138,13 +145,8 @@ export default function Book() {
   }
 
   if (isLoading) return <Spinner className="min-h-[50vh]" />;
-  if (units.length === 0) {
-    return (
-      <EmptyState icon={<BedDouble className="size-8" />} title="Online booking opens soon">
-        Message us on Facebook to reserve your stay.
-      </EmptyState>
-    );
-  }
+  if (!unit) return <Navigate to="/#stay" replace />;
+  if (!range.checkIn || !range.checkOut) return <Navigate to={`/stay/${unit.slug}?guests=${guests}`} replace />;
 
   const agreementText =
     settings?.waiver ||
@@ -156,314 +158,269 @@ export default function Book() {
       .filter(Boolean)
       .join("\n\n");
 
+  const photo = unitPhotos(unit)[0]!;
+  const nights = quote?.nights ?? nightsBetween(range.checkIn, range.checkOut);
+  const backHref = `/stay/${unit.slug}?in=${range.checkIn}&out=${range.checkOut}&guests=${guests}`;
+  const dueNow = amount === "full" || downPercent === 0 ? (quote?.total ?? 0) : downpayment;
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-8">
-      <p className="text-[11px] font-semibold tracking-[0.28em] text-brand-700">RESERVE</p>
-      <h1 className="site-display mt-2 text-3xl text-brand-700 sm:text-5xl">Book your stay.</h1>
-      <p className="mt-2 text-ink-soft">Your booking is confirmed once we verify your downpayment.</p>
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-8 sm:py-14">
+      <Link to={backHref} className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-brand-700">
+        <ArrowLeft className="size-4" /> Back to {unit.name}
+      </Link>
+      <h1 className="mt-4 font-sans text-3xl font-semibold text-ink sm:text-4xl">Secure your booking</h1>
+      <p className="mt-2 text-ink-soft">Add your details, choose how you'll pay, and send your request.</p>
 
-      <form onSubmit={submit} noValidate className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-6">
-          {units.length > 1 && (
-            <Section step={1} title="Choose a room" icon={<BedDouble className="size-4" />}>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {units.map((u) => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => setParams({ unit: u.slug }, { replace: true })}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl border p-3 text-left transition-colors",
-                      unit?.id === u.id
-                        ? "border-brand-600 bg-brand-50 ring-1 ring-brand-600"
-                        : "border-sand-200 bg-white hover:border-sand-300",
-                    )}
-                  >
-                    <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-sand-100">
-                      {u.photos[0] && <img src={photoUrl(u.photos[0])} alt="" className="size-full object-cover" />}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium">{u.name}</p>
-                      <p className="text-sm text-ink-muted">
-                        {money(u.base_rate, true)}/night · up to {u.max_guests}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </Section>
-          )}
+      {/* Stay summary */}
+      <div className="mt-8 flex flex-col gap-5 rounded-2xl border border-sand-200/80 bg-white p-4 shadow-level-2 sm:p-5 md:flex-row md:items-center">
+        <img src={photo} alt="" className="aspect-[4/3] w-full rounded-xl object-cover md:w-48" />
+        <div className="min-w-0 flex-1">
+          <p className="text-lg font-semibold text-ink">{unit.name}</p>
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-muted">
+            <MapPin className="size-4" /> {LOCATION_LABEL}
+          </p>
+          <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-0 sm:divide-x sm:divide-sand-200">
+            <Fact icon={<CalendarDays />} label="Check-in" value={prettyDate(range.checkIn, "MMM d, yyyy")} />
+            <Fact icon={<CalendarDays />} label="Check-out" value={prettyDate(range.checkOut, "MMM d, yyyy")} />
+            <Fact icon={<Users />} label="Guests" value={plural(guests, "guest")} />
+            <Fact icon={<Moon />} label="Nights" value={plural(nights, "night")} />
+          </dl>
+        </div>
+        <div className="border-t border-sand-200 pt-4 text-center md:w-48 md:border-t-0 md:border-l md:pt-0 md:pl-5">
+          <p className="text-sm text-ink-muted">Total amount</p>
+          <p className={cn("mt-1 text-3xl font-semibold text-ink", quoting && "opacity-50")}>
+            {quote ? money(quote.total, true) : "—"}
+          </p>
+          <p className="mt-2 border-t border-sand-200 pt-2 text-xs text-ink-muted">All amounts in PHP</p>
+        </div>
+      </div>
 
-          <Section
-            step={units.length > 1 ? 2 : 1}
-            title="Dates"
-            icon={<CalendarDays className="size-4" />}
-            error={touched ? errors.dates : null}
-          >
-            {!unit ? (
-              <p className="text-sm text-ink-muted">Choose a room first to see open dates.</p>
-            ) : (
-              <>
-                <RangeCalendar
-                  value={range}
-                  onChange={setRange}
-                  unavailable={unavailable ?? new Set()}
-                  dayNote={(iso) => compactMoney(nightlyRate(unit, iso, overrides))}
+      <form onSubmit={submit} noValidate className="mt-10 space-y-10">
+        <Step n={1} title="Your details">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Full name" error={touched ? errors.name : null} className="sm:col-span-2">
+              {(id) => <Input id={id} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />}
+            </Field>
+            <Field label="Email" error={touched ? errors.email : null}>
+              {(id) => (
+                <Input id={id} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+              )}
+            </Field>
+            <Field label="Mobile number" error={touched ? errors.phone : null} hint="Local or international.">
+              {(id) => (
+                <Input
+                  id={id}
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  autoComplete="tel"
+                  placeholder="0917 123 4567"
                 />
-                <p className="mt-3 text-xs text-ink-muted">
-                  Crossed-out dates are taken. Prices shown are per night. Check-in{" "}
-                  {prettyTime(settings?.check_in_time ?? "14:00")}, check-out{" "}
-                  {prettyTime(settings?.check_out_time ?? "12:00")}.
-                </p>
-              </>
-            )}
-          </Section>
-
-          <Section step={units.length > 1 ? 3 : 2} title="Your details" icon={<Users className="size-4" />}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Full name" error={touched ? errors.name : null} className="sm:col-span-2">
-                {(id) => (
-                  <Input id={id} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-                )}
-              </Field>
-              <Field label="Email" error={touched ? errors.email : null}>
-                {(id) => (
-                  <Input
-                    id={id}
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                  />
-                )}
-              </Field>
-              <Field label="Mobile number" error={touched ? errors.phone : null} hint="Local or international.">
-                {(id) => (
-                  <Input
-                    id={id}
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    autoComplete="tel"
-                    placeholder="0917 123 4567"
-                  />
-                )}
-              </Field>
-              <Field label="Guests" hint={unit ? `This room fits up to ${unit.max_guests}.` : undefined}>
-                {(id) => (
-                  <div className="flex h-10 items-center gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="size-10 px-0 text-lg"
-                      onClick={() => setGuests((g) => Math.max(1, g - 1))}
-                      aria-label="Fewer guests"
-                    >
-                      −
-                    </Button>
-                    <output id={id} className="w-10 text-center font-medium">
-                      {guests}
-                    </output>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="size-10 px-0 text-lg"
-                      onClick={() => setGuests((g) => Math.min(unit?.max_guests ?? 20, g + 1))}
-                      aria-label="More guests"
-                    >
-                      +
-                    </Button>
-                  </div>
-                )}
-              </Field>
-              <Field label="Special requests" optional className="sm:col-span-2">
-                {(id) => (
-                  <Textarea
-                    id={id}
-                    value={requests}
-                    onChange={(e) => setRequests(e.target.value)}
-                    placeholder="Arrival time, celebrations, extra bedding…"
-                  />
-                )}
-              </Field>
-            </div>
-          </Section>
-
-          <Section step={units.length > 1 ? 4 : 3} title="Payment" icon={<Upload className="size-4" />}>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {hasGcash && <PayOption value="gcash" current={pay} onPick={setPay} label="GCash" />}
-              {hasBank && <PayOption value="bank_transfer" current={pay} onPick={setPay} label="Bank transfer" />}
-              <PayOption value="later" current={pay} onPick={setPay} label="Pay later" />
-            </div>
-
-            {pay === "gcash" && settings && (
-              <PayDetails
-                rows={[
-                  ["GCash number", settings.gcash_number],
-                  ["Account name", settings.gcash_name],
-                ]}
-              />
-            )}
-            {pay === "bank_transfer" && settings && (
-              <PayDetails
-                rows={[
-                  ["Bank", settings.bank_name],
-                  ["Account name", settings.bank_account_name],
-                  ["Account number", settings.bank_account_number],
-                ]}
-              />
-            )}
-            {pay === "later" ? (
-              <p className="mt-4 text-sm text-ink-muted">
-                We'll hold the dates while we review your request and message you how to pay. Unpaid requests may be
-                released.
-              </p>
-            ) : (
-              <>
-                {settings?.payment_instructions && (
-                  <p className="mt-4 text-sm text-ink-soft">{settings.payment_instructions}</p>
-                )}
-                <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-sand-300 bg-sand-50 px-4 py-4 hover:border-brand-500">
-                  <Upload className="size-5 shrink-0 text-ink-muted" />
-                  <span className="min-w-0 flex-1 text-sm">
-                    {receipt ? (
-                      <span className="block truncate font-medium">{receipt.name}</span>
-                    ) : (
-                      <>
-                        <span className="font-medium">Upload your receipt</span>
-                        <span className="block text-ink-muted">Screenshot or PDF, up to 10 MB. You can also send it later.</span>
-                      </>
-                    )}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null;
-                      if (f && f.size > 10 * 1024 * 1024) {
-                        setSubmitError("That file is over 10 MB. Try a screenshot instead.");
-                        return;
-                      }
-                      setReceipt(f);
-                    }}
-                  />
-                </label>
-              </>
-            )}
-          </Section>
-
-          <div className="rounded-2xl border border-sand-200/80 bg-white p-5 shadow-level-2">
-            <button
-              type="button"
-              onClick={() => setShowAgreement((v) => !v)}
-              className="flex w-full items-center justify-between gap-3 text-left"
-              aria-expanded={showAgreement}
-            >
-              <span className="flex items-center gap-2 font-medium">
-                <FileText className="size-4 text-brand-700" /> Guest agreement
-              </span>
-              <span className="flex items-center gap-1 text-sm text-ink-muted">
-                {showAgreement ? "Hide" : "Read"}
-                <ChevronDown className={cn("size-4 transition-transform", showAgreement && "rotate-180")} />
-              </span>
-            </button>
-            {showAgreement && (
-              <div className="mt-3 max-h-72 overflow-y-auto rounded-lg bg-sand-50 p-4 text-sm leading-relaxed whitespace-pre-line text-ink-soft">
-                {agreementText}
-              </div>
-            )}
-            <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-                className="mt-0.5 size-4 accent-brand-700"
-              />
-              <span>I have read and agree to the guest agreement, house rules and cancellation policy.</span>
-            </label>
-            {touched && errors.agreed && <p className="mt-2 text-xs text-red-700">{errors.agreed}</p>}
+              )}
+            </Field>
+            <Field label="Special requests" optional className="sm:col-span-2">
+              {(id) => (
+                <Textarea
+                  id={id}
+                  value={requests}
+                  onChange={(e) => setRequests(e.target.value)}
+                  placeholder="Arrival time, celebrations, extra bedding…"
+                />
+              )}
+            </Field>
           </div>
+        </Step>
+
+        <Step n={2} title="Choose payment method">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {hasGcash && (
+              <PayCard value="gcash" current={pay} onPick={setPay} title="GCash" note="Send to our GCash number">
+                <span className="text-xl font-bold tracking-tight text-[#0a5ef0]">GCash</span>
+              </PayCard>
+            )}
+            {hasBank && (
+              <PayCard
+                value="bank_transfer"
+                current={pay}
+                onPick={setPay}
+                title="Bank transfer"
+                note={settings?.bank_name || "Online or over the counter"}
+              >
+                <Landmark className="size-7 text-ink-soft" />
+              </PayCard>
+            )}
+            <PayCard value="later" current={pay} onPick={setPay} title="Pay later" note="We'll message you how to pay">
+              <Clock className="size-7 text-ink-soft" />
+            </PayCard>
+          </div>
+          {pay === "gcash" && settings && (
+            <PayDetails
+              rows={[
+                ["GCash number", settings.gcash_number],
+                ["Account name", settings.gcash_name],
+              ]}
+            />
+          )}
+          {pay === "bank_transfer" && settings && (
+            <PayDetails
+              rows={[
+                ["Bank", settings.bank_name],
+                ["Account name", settings.bank_account_name],
+                ["Account number", settings.bank_account_number],
+              ]}
+            />
+          )}
+          {pay === "later" && (
+            <p className="mt-4 rounded-xl bg-sand-100 px-4 py-3 text-sm text-ink-soft">
+              We'll hold the dates while we review your request and message you how to pay. Unpaid requests may be released.
+            </p>
+          )}
+        </Step>
+
+        {pay !== "later" && quote && (
+          <Step n={3} title="Choose payment amount">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {downPercent > 0 && downPercent < 100 && (
+                <AmountCard
+                  active={amount === "down"}
+                  onPick={() => setAmount("down")}
+                  title={`Pay ${downPercent}% now`}
+                  badge="Recommended"
+                  note="Secure your booking today."
+                  value={money(downpayment, true)}
+                  sub={`Due today (${downPercent}%)`}
+                />
+              )}
+              <AmountCard
+                active={amount === "full" || downPercent === 0 || downPercent >= 100}
+                onPick={() => setAmount("full")}
+                title="Pay in full"
+                note="Settle everything now."
+                value={money(quote.total, true)}
+                sub="Due today (100%)"
+              />
+            </div>
+            <p className="mt-4 flex items-center gap-3 rounded-xl bg-sand-100 px-4 py-3 text-sm text-ink-soft">
+              <Info className="size-4 shrink-0" /> Any remaining balance is paid before check-in.
+            </p>
+            {settings?.payment_instructions && <p className="mt-3 text-sm text-ink-soft">{settings.payment_instructions}</p>}
+
+            <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-sand-300 bg-white px-4 py-4 hover:border-brand-700">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-700/10 text-brand-700">
+                <Upload className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1 text-sm">
+                {receipt ? (
+                  <span className="block truncate font-medium">{receipt.name}</span>
+                ) : (
+                  <>
+                    <span className="font-medium">Upload your receipt for {money(dueNow, true)}</span>
+                    <span className="block text-ink-muted">Screenshot or PDF, up to 10 MB. You can also send it later.</span>
+                  </>
+                )}
+              </span>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  if (f && f.size > 10 * 1024 * 1024) {
+                    setSubmitError("That file is over 10 MB. Try a screenshot instead.");
+                    return;
+                  }
+                  setReceipt(f);
+                }}
+              />
+            </label>
+          </Step>
+        )}
+
+        <div>
+          <label className="flex cursor-pointer items-start gap-3 text-base text-ink">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-1 size-5 shrink-0 accent-brand-700"
+            />
+            <span>
+              I agree to the{" "}
+              <button
+                type="button"
+                onClick={() => setShowAgreement((v) => !v)}
+                className="cursor-pointer underline underline-offset-4 hover:text-brand-700"
+                aria-expanded={showAgreement}
+              >
+                guest agreement
+              </button>
+              , house rules and cancellation policy.
+            </span>
+          </label>
+          {showAgreement && (
+            <div className="mt-3 max-h-72 overflow-y-auto rounded-xl bg-sand-100 p-4 text-sm leading-relaxed whitespace-pre-line text-ink-soft">
+              {agreementText}
+            </div>
+          )}
+          {touched && errors.agreed && <p className="mt-2 text-sm text-red-700">{errors.agreed}</p>}
         </div>
 
-        <aside className="lg:sticky lg:top-24 lg:self-start">
-          <div className="rounded-2xl border border-sand-200/80 bg-white p-5 shadow-level-2">
-            <h2 className="text-xl font-medium text-ink">{unit?.name ?? "Your stay"}</h2>
-            <dl className="mt-4 space-y-2 text-sm">
-              <Row label="Check-in" value={range.checkIn ? prettyDate(range.checkIn, "EEE, MMM d") : "—"} />
-              <Row label="Check-out" value={range.checkOut ? prettyDate(range.checkOut, "EEE, MMM d") : "—"} />
-              <Row label="Guests" value={String(guests)} />
-            </dl>
-            {quote && range.checkOut && (
-              <dl className={cn("mt-4 space-y-2 border-t border-sand-200 pt-4 text-sm", quoting && "opacity-60")}>
-                <Row label={plural(quote.nights, "night")} value={money(quote.room_total)} />
-                {quote.extra_guest_total > 0 && <Row label="Extra guests" value={money(quote.extra_guest_total)} />}
-                <div className="flex justify-between border-t border-sand-200 pt-3 text-base font-semibold">
-                  <dt>Total</dt>
-                  <dd>{money(quote.total)}</dd>
-                </div>
-                {pay !== "later" && (settings?.downpayment_percent ?? 0) > 0 && (
-                  <Row
-                    label={`Downpayment (${settings?.downpayment_percent}%)`}
-                    value={money(downpayment)}
-                    strong
-                  />
-                )}
-              </dl>
-            )}
-            <ErrorBox className="mt-4">{submitError}</ErrorBox>
-            {touched && firstError && !submitError && (
-              <p className="mt-4 text-sm text-red-700">{firstError}</p>
-            )}
-            <Button type="submit" variant="accent" size="lg" className="mt-5 w-full" loading={submitting}>
-              <Check className="size-4" /> Request booking
-            </Button>
-            <p className="mt-3 text-center text-xs text-ink-muted">You won't be charged by this form.</p>
-          </div>
-        </aside>
+        <div>
+          <ErrorBox className="mb-4">{submitError}</ErrorBox>
+          {touched && firstError && !submitError && <p className="mb-4 text-sm text-red-700">{firstError}</p>}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="flex h-14 w-full cursor-pointer items-center justify-between rounded-xl bg-ink px-6 text-lg font-medium text-white shadow-level-3 transition-colors hover:bg-ink/90 disabled:opacity-60"
+          >
+            <span className="flex-1 text-center">{submitting ? "Sending…" : "Request booking"}</span>
+            {submitting ? <Loader2 className="size-5 animate-spin" /> : <ArrowRight className="size-5" />}
+          </button>
+          <p className="mt-4 flex items-center justify-center gap-2 text-sm text-ink-muted">
+            <Lock className="size-4" /> Your booking is confirmed once we verify your payment.
+          </p>
+        </div>
       </form>
     </div>
   );
 }
 
-function Section({
-  step,
-  title,
-  icon,
-  error,
-  children,
-}: {
-  step: number;
-  title: string;
-  icon: ReactNode;
-  error?: string | null;
-  children: ReactNode;
-}) {
+function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
   return (
-    <section className={cn("rounded-2xl border bg-white p-5 shadow-level-2 sm:p-6", error ? "border-red-300" : "border-sand-200/80")}>
-      <h2 className="mb-4 flex items-center gap-2 font-sans text-base font-semibold">
-        <span className="flex size-6 items-center justify-center rounded-full bg-brand-700 text-xs text-sand-50">
-          {step}
-        </span>
-        {title}
-        <span className="text-brand-700">{icon}</span>
+    <section>
+      <h2 className="mb-4 font-sans text-lg font-semibold text-ink">
+        {n}. {title}
       </h2>
       {children}
-      {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
     </section>
   );
 }
 
-function PayOption({
+function Fact({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="sm:px-4 sm:first:pl-0">
+      <dt className="flex items-center gap-1.5 text-xs text-ink-muted [&_svg]:size-3.5">
+        {icon} {label}
+      </dt>
+      <dd className="mt-1 text-sm font-semibold text-ink">{value}</dd>
+    </div>
+  );
+}
+
+function PayCard({
   value,
   current,
   onPick,
-  label,
+  title,
+  note,
+  children,
 }: {
   value: PayChoice;
   current: PayChoice;
   onPick: (v: PayChoice) => void;
-  label: string;
+  title: string;
+  note: string;
+  children: ReactNode;
 }) {
   const active = value === current;
   return (
@@ -472,18 +429,78 @@ function PayOption({
       onClick={() => onPick(value)}
       aria-pressed={active}
       className={cn(
-        "rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
-        active ? "border-brand-600 bg-brand-50 text-brand-700 ring-1 ring-brand-600" : "border-sand-200 hover:border-sand-300",
+        "relative flex cursor-pointer flex-col items-center rounded-2xl border bg-white px-4 pt-7 pb-5 text-center transition-colors",
+        active ? "border-brand-700 ring-1 ring-brand-700" : "border-sand-200 hover:border-sand-300",
       )}
     >
-      {label}
+      <Radio on={active} className="absolute top-3 right-3" />
+      <span className="flex h-9 items-center">{children}</span>
+      <span className="mt-3 font-semibold text-ink">{title}</span>
+      <span className="mt-1 text-xs text-ink-muted">{note}</span>
     </button>
+  );
+}
+
+function AmountCard({
+  active,
+  onPick,
+  title,
+  badge,
+  note,
+  value,
+  sub,
+}: {
+  active: boolean;
+  onPick: () => void;
+  title: string;
+  badge?: string;
+  note: string;
+  value: string;
+  sub: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      aria-pressed={active}
+      className={cn(
+        "flex cursor-pointer items-start gap-3 rounded-2xl border p-5 text-left transition-colors",
+        active ? "border-brand-700/60 bg-brand-50" : "border-sand-200 bg-white hover:border-sand-300",
+      )}
+    >
+      <Radio on={active} className="mt-0.5" />
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2 font-semibold text-ink">
+          {title}
+          {badge && <span className="rounded-md bg-sand-100 px-2 py-0.5 text-[11px] font-medium text-ink-soft">{badge}</span>}
+        </span>
+        <span className="mt-1 block text-sm text-ink-muted">{note}</span>
+      </span>
+      <span className="shrink-0 text-right">
+        <span className="block font-semibold text-ink">{value}</span>
+        <span className="mt-1 block text-xs text-ink-muted">{sub}</span>
+      </span>
+    </button>
+  );
+}
+
+function Radio({ on, className }: { on: boolean; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "grid size-5 shrink-0 place-items-center rounded-full border-2",
+        on ? "border-brand-700" : "border-sand-300",
+        className,
+      )}
+    >
+      {on && <span className="size-2.5 rounded-full bg-brand-700" />}
+    </span>
   );
 }
 
 function PayDetails({ rows }: { rows: [string, string][] }) {
   return (
-    <dl className="mt-4 divide-y divide-sand-200 rounded-xl bg-sand-50 text-sm">
+    <dl className="mt-4 divide-y divide-sand-200 rounded-xl bg-sand-100 text-sm">
       {rows
         .filter(([, v]) => v)
         .map(([k, v]) => (
@@ -493,14 +510,5 @@ function PayDetails({ rows }: { rows: [string, string][] }) {
           </div>
         ))}
     </dl>
-  );
-}
-
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <dt className="text-ink-muted">{label}</dt>
-      <dd className={cn(strong && "font-semibold text-terra-600")}>{value}</dd>
-    </div>
   );
 }

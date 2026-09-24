@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Mail, MapPin, Phone } from "lucide-react";
+import { Lock, Mail, MapPin, Phone } from "lucide-react";
 import { useSettings } from "../../lib/queries";
 import { SITE } from "../../lib/site";
 import { cn } from "../../lib/utils";
@@ -71,6 +71,33 @@ export default function PublicLayout() {
   const mapUrl = s?.map_url || SITE.mapUrl;
   const telHref = phone === SITE.phone ? SITE.phoneHref : `tel:${phone.replace(/[^\d+]/g, "")}`;
 
+  // Checkout drops the nav for the wordmark and a reassurance, as in Malaya.
+  if (pathname === "/book") {
+    return (
+      <div data-site="public" className="flex min-h-screen flex-col bg-white">
+        <header className="border-b border-sand-200/60 bg-white">
+          <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-8">
+            <Link to="/" aria-label="Vivienda home">
+              <Wordmark />
+            </Link>
+            <span className="inline-flex items-center gap-2 text-sm text-ink-muted">
+              <Lock className="size-4" /> Secure booking
+            </span>
+          </div>
+        </header>
+        <main className="flex-1">
+          <Outlet />
+        </main>
+        <footer className="border-t border-sand-200/60 bg-sand-50 py-5 text-center text-sm text-ink-muted">
+          Questions? Call{" "}
+          <a href={telHref} className="font-medium text-brand-700 hover:underline">
+            {phone}
+          </a>
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <div data-site="public" className="flex min-h-screen flex-col bg-white">
       <header
@@ -87,9 +114,6 @@ export default function PublicLayout() {
             <Link to="/#stay" className="transition-colors hover:text-brand-700">
               Stay
             </Link>
-            <Link to="/#gallery" className="transition-colors hover:text-brand-700">
-              Gallery
-            </Link>
             <Link to="/#contact" className="transition-colors hover:text-brand-700">
               Contact
             </Link>
@@ -102,7 +126,7 @@ export default function PublicLayout() {
               My Booking
             </NavLink>
             <Link
-              to="/book"
+              to="/#stay"
               className="inline-flex h-10 items-center rounded-full bg-brand-700 px-5 text-sm whitespace-nowrap font-medium text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90 sm:px-6"
             >
               Book Now
@@ -127,13 +151,11 @@ export default function PublicLayout() {
 
           <FooterColumn title="EXPLORE">
             <FooterLink to="/#stay">Stay</FooterLink>
-            <FooterLink to="/#gallery">Gallery</FooterLink>
-            <FooterLink to="/book">Book a stay</FooterLink>
+            <FooterLink to="/#stay">Book a stay</FooterLink>
           </FooterColumn>
 
           <FooterColumn title="SUPPORT">
             <FooterLink to="/my-booking">My Booking</FooterLink>
-            <FooterLink to="/#policies">House rules</FooterLink>
             <FooterLink href={facebook} external>
               Facebook page
             </FooterLink>

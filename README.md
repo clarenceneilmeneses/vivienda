@@ -58,6 +58,9 @@ Until `RESEND_API_KEY` is set, the site works normally. Emails are skipped and l
 ### 3. Resend (email)
 Create an account at resend.com, add the resort's domain, and add the DNS records it gives you. Without a verified domain, Resend only delivers to your own account email (fine for testing).
 
+### Demo data (optional)
+To see the site and admin filled in, paste `supabase/seed-demo.sql` into the SQL Editor and run it. It adds sample stays, guests, bookings, payments and expenses around today's date. Section 0 of that file removes them again. The sample reviews live in `src/lib/site.ts` (`REVIEWS`); replace them with real ones before launch.
+
 ### 4. First use
 Log in at `/admin` and:
 1. Fill in **Settings** (payment details, rules, the email for new-booking alerts).

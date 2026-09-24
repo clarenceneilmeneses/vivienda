@@ -6,6 +6,7 @@ import PublicLayout from "./components/public/PublicLayout";
 import Home from "./pages/public/Home";
 import Book from "./pages/public/Book";
 import MyBooking from "./pages/public/MyBooking";
+import Stay from "./pages/public/Stay";
 
 // The admin side carries charts and heavier screens; guests never download it.
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout"));
@@ -30,6 +31,7 @@ export default function App() {
       <Routes>
         <Route element={<PublicLayout />}>
           <Route index element={<Home />} />
+          <Route path="stay/:slug" element={<Stay />} />
           <Route path="book" element={<Book />} />
           <Route path="my-booking" element={<MyBooking />} />
         </Route>
