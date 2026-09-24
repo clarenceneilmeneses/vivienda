@@ -114,33 +114,56 @@ export const SLEEPING: { room: string; beds: string[] }[] = [
 ];
 
 /**
- * SAMPLE REVIEWS for the demo. They are written for the mock data and are not
- * from real guests. Replace them with real feedback (or set the list to [])
- * before the site goes live.
+ * Real recommendations from the Facebook page (9 of 9 recommend, as of
+ * Sep 25, 2026). Copied as written; long ones end where Facebook cut them off.
  */
-export const REVIEWS: { author: string; month: string; rating: number; body: string }[] = [
+export const REVIEWS: { author: string; month: string; body: string }[] = [
   {
-    author: "Angela M.",
+    author: "Kathy Bunyi Gaa",
     month: "August 2026",
-    rating: 5,
-    body: "The pool was spotless and we had the whole place to ourselves. The A-frame at sunset is even better than the photos.",
+    body: "We celebrated my niece's birthday at Vivienda Resort, and we had such a wonderful experience! The place is peaceful, clean, and well-maintained, making it perfect for a relaxing family gathering. Since the resort is exclusive, we really enjoyed having the whole place to ourselves, perfect for family celebrations, reunions, and intimate gatherings.",
   },
   {
-    author: "R.L.D.",
-    month: "July 2026",
-    rating: 5,
-    body: "Smooth check-in and a very responsive host. The kids didn't want to leave the pool or the play area.",
+    author: "Joy DM II",
+    month: "March 2026",
+    body: "Super enjoyed our stay at Vivienda! The cabin is spacious and cozy. Hindi kami nabored because may billiard table, board games, and karaoke. Very exclusive din yung place so we really had a relaxing time, and we loved that we could swim in the pool anytime. Plus, the resort owner is very accommodating and mabait. Highly recommended for a private getaway!",
   },
   {
-    author: "Trisha L.",
-    month: "July 2026",
-    rating: 5,
-    body: "Clean, quiet and relaxing. The garden tables were perfect for our family lunch. We'll definitely be back.",
+    author: "Tom Lester Aro Barrion",
+    month: "April 2026",
+    body: "Highly recommended! The place is very clean and beautiful. The owner and staff are all very kind and accommodating. It's absolutely perfect for a family outing. We had such a great time here with my whole family, definitely a place we'd love to visit again!",
   },
   {
-    author: "Marco D.",
+    author: "Arra Curaming Patrocenio",
+    month: "February 2026",
+    body: "Awesome experience at Vivienda! The place is absolutely beautiful - clean, well-maintained, refreshing and thoughtfully designed for comfort and privacy. Napakabait kausap and very accommodating pa si Owner at staff nito, kaya naging very smooth ang transaction. Our stay and birthday celebration turned out to be truly enjoyable and memorable.",
+  },
+  {
+    author: "Gared Christian Abrenica",
+    month: "March 2026",
+    body: "Highly recommended po, sobrang convenient po ng place along with the included amenities, such as the pool, the bedrooms with multiple decks, pantry with kitchenwares, and the billiards along with other mini games in the resort itself.",
+  },
+  {
+    author: "Chona Dimalanta",
     month: "June 2026",
-    rating: 5,
-    body: "Booked the weekday day tour for our barkada. Karaoke, billiards and the pool all to ourselves. Great value.",
+    body: "Highly recommended!! Super bait at accommodating ng owner at caretaker. Malinis, maganda at relaxing ng place.",
+  },
+  {
+    author: "King Marpee Agena",
+    month: "March 2026",
+    body: "10/10 highly recommended, spacious at maganda ang mismong place. Convenient dahil malapit sa mga stores like Alfamart at Dali.",
+  },
+  {
+    author: "Cenon Dove Balbanida",
+    month: "February 2026",
+    body: "Very satisfied couple here sa service nyo, sobrang ganda ng venue and very accommodating. Feel na feel at home kami kaya naging successful at maganda ang kinalabasan ng aming prenup. Recommendable! Thank you Vivienda!",
+  },
+  {
+    author: "Rosevel Arenas Cayabyab",
+    month: "September 2026",
+    body: "Peaceful vibes with lots of activities to enjoy. Spacious rooms.",
   },
 ];
+
+/** The Facebook rating line: every reviewer recommends. */
+export const RECOMMEND = { percent: 100, count: REVIEWS.length };

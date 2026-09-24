@@ -1,15 +1,29 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { useQueries } from "@tanstack/react-query";
-import { ArrowRight, BedDouble, Grid3X3, Sparkles, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  ArrowRight,
+  BedDouble,
+  CheckCircle2,
+  Grid3X3,
+  MapPin,
+  Sparkles,
+  ThumbsUp,
+  Users,
+  Waves,
+  Wifi,
+  X,
+  XCircle,
+} from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useSettings, useUnits } from "../../lib/queries";
-import { isoDate, nightsBetween, prettyDate } from "../../lib/format";
-import { GALLERY, PHOTOS, PROMO, REVIEWS, SITE } from "../../lib/site";
+import { isoDate, money, nightsBetween, prettyDate } from "../../lib/format";
+import { GALLERY, LOCATION_LABEL, PHOTOS, PROMO, RECOMMEND, REVIEWS, SITE, SLEEPING } from "../../lib/site";
+import { cn } from "../../lib/utils";
 import { EmptyState } from "../../components/ui";
 import { FrondBackdrop } from "../../components/public/decor";
 import { SearchPill, type StaySearch } from "../../components/public/SearchPill";
-import { ReviewCard, StayCard, StayRow, type StayItem } from "../../components/public/StayBits";
+import { ReviewCard, unitPhotos } from "../../components/public/StayBits";
 import type { Unit } from "../../lib/types";
 
 export default function Home() {
@@ -17,8 +31,8 @@ export default function Home() {
   const { data: units, isLoading } = useUnits();
   const { hash } = useLocation();
   const [params, setParams] = useSearchParams();
-  const active = useMemo(() => (units ?? []).filter((u) => u.is_active), [units]);
-  const maxGuests = active.reduce((n, u) => Math.max(n, u.max_guests), 2);
+  // Vivienda is one resort, booked whole. It is the first active listing.
+  const resort = (units ?? []).find((u) => u.is_active);
 
   // The search lives in the URL, so a result can be shared or come back to.
   const applied: StaySearch = {
@@ -41,48 +55,38 @@ export default function Home() {
     document.getElementById("stay")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  // For a dated search: each stay's taken nights and its server-side price.
-  const checks = useQueries({
-    queries: active.map((u) => ({
-      queryKey: ["search", u.id, applied.checkIn, applied.checkOut, applied.guests],
-      enabled: searching,
-      queryFn: async () => {
-        const lastNight = isoDate(new Date(new Date(`${applied.checkOut}T00:00:00`).getTime() - 86_400_000));
-        const [taken, quote] = await Promise.all([
-          supabase.rpc("unavailable_nights", { p_unit: u.id, p_from: applied.checkIn, p_to: lastNight }),
-          supabase.rpc("quote_stay", {
-            p_unit: u.id,
-            p_check_in: applied.checkIn,
-            p_check_out: applied.checkOut,
-            p_guests: Math.min(applied.guests, u.max_guests),
-          }),
-        ]);
-        if (taken.error) throw taken.error;
-        if (quote.error) throw quote.error;
-        return {
-          free: ((taken.data ?? []) as string[]).length === 0,
-          total: Number((quote.data as { total: number }[])[0]?.total ?? 0),
-        };
-      },
-    })),
+  // For a dated search: are those nights free, and what does the stay cost.
+  const { data: check, isFetching: checking } = useQuery({
+    queryKey: ["search", resort?.id, applied.checkIn, applied.checkOut, applied.guests],
+    enabled: Boolean(resort && searching),
+    queryFn: async () => {
+      const u = resort!;
+      const lastNight = isoDate(new Date(new Date(`${applied.checkOut}T00:00:00`).getTime() - 86_400_000));
+      const [taken, quote] = await Promise.all([
+        supabase.rpc("unavailable_nights", { p_unit: u.id, p_from: applied.checkIn, p_to: lastNight }),
+        supabase.rpc("quote_stay", {
+          p_unit: u.id,
+          p_check_in: applied.checkIn,
+          p_check_out: applied.checkOut,
+          p_guests: Math.min(applied.guests, u.max_guests),
+        }),
+      ]);
+      if (taken.error) throw taken.error;
+      if (quote.error) throw quote.error;
+      return {
+        free: ((taken.data ?? []) as string[]).length === 0,
+        total: Number((quote.data as { total: number }[])[0]?.total ?? 0),
+      };
+    },
   });
 
-  const items: StayItem[] = active
-    .map((u, i) => {
-      const c = checks[i]?.data;
-      const available = !searching || (c?.free ?? true);
-      return { unit: u, nights, available, total: searching && c && available ? c.total : null };
-    })
-    .filter((it) => it.unit.max_guests >= applied.guests)
-    .sort((a, b) => Number(b.available) - Number(a.available));
-
-  const hrefFor = (u: Unit) => {
+  const stayHref = (u: Unit) => {
     const q = new URLSearchParams();
     if (searching) {
       q.set("in", applied.checkIn);
       q.set("out", applied.checkOut);
     }
-    q.set("guests", String(applied.guests));
+    q.set("guests", String(Math.min(applied.guests, u.max_guests)));
     return `/stay/${u.slug}?${q}`;
   };
 
@@ -91,7 +95,6 @@ export default function Home() {
   }, [hash, isLoading]);
 
   const promoOn = PROMO && PROMO.until >= isoDate(new Date());
-
   return (
     <>
       {/* Hero: centred display serif on white with the frond, as on the Malaya landing. */}
@@ -115,56 +118,38 @@ export default function Home() {
 
       {/* The search, sticky. Outside the hero because sticky is inert inside overflow-hidden. */}
       <div className="pointer-events-none sticky top-0 z-20 px-4 pt-3 pb-3 sm:px-8 md:pt-2 md:pb-4 [&>*]:pointer-events-auto">
-        <SearchPill value={draft} onChange={setDraft} onSearch={runSearch} maxGuests={Math.max(maxGuests, 2)} />
+        <SearchPill value={draft} onChange={setDraft} onSearch={runSearch} maxGuests={Math.max(resort?.max_guests ?? 2, 2)} />
       </div>
 
-      <section id="stay" className="scroll-mt-24 px-6 py-8 sm:px-8 md:py-14">
+      <section id="stay" className="scroll-mt-24 px-4 py-8 sm:px-8 md:py-14">
         <div className="mx-auto max-w-7xl">
           {isLoading ? (
-            <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 sm:gap-x-4 lg:grid-cols-4">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="aspect-square animate-pulse rounded-2xl bg-sand-100" />
-              ))}
-            </div>
-          ) : active.length === 0 ? (
+            <div className="h-[420px] animate-pulse rounded-3xl bg-sand-100" />
+          ) : !resort ? (
             <EmptyState icon={<BedDouble />} title="Online booking opens soon">
               Call {s?.phone || SITE.phone} or message us on Facebook to reserve your stay.
             </EmptyState>
-          ) : searching ? (
-            <section>
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <h2 className="site-display text-2xl text-brand-700 sm:text-3xl">
-                  {prettyDate(applied.checkIn, "MMM d")} – {prettyDate(applied.checkOut, "MMM d")}
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraft({ checkIn: "", checkOut: "", guests: applied.guests });
-                    setParams({}, { replace: true });
-                  }}
-                  className="cursor-pointer text-sm font-medium text-ink-muted underline underline-offset-4 hover:text-ink"
-                >
-                  Clear search
-                </button>
-              </div>
-              <p className="mt-2 text-sm text-ink-soft">
-                {nights} night{nights === 1 ? "" : "s"} · {applied.guests} guest{applied.guests === 1 ? "" : "s"} · prices
-                are totals for your stay.
-              </p>
-              {items.length === 0 ? (
-                <p className="mt-6 text-sm text-ink-muted">No stay fits {applied.guests} guests. Try fewer guests.</p>
-              ) : (
-                <div className="mt-5 grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 sm:gap-x-4 lg:grid-cols-4">
-                  {items.map((it, i) => (
-                    <StayCard key={it.unit.id} item={it} href={hrefFor(it.unit)} index={i} />
-                  ))}
-                </div>
-              )}
-            </section>
-          ) : items.length === 0 ? (
-            <p className="text-sm text-ink-muted">No stay fits {applied.guests} guests. Try fewer guests.</p>
           ) : (
-            <StayRow title="Stays worth the drive." items={items} hrefFor={hrefFor} />
+            <ResortCard
+              unit={resort}
+              href={stayHref(resort)}
+              search={
+                searching
+                  ? {
+                      label: `${prettyDate(applied.checkIn, "MMM d")} – ${prettyDate(applied.checkOut, "MMM d")}`,
+                      nights,
+                      loading: checking,
+                      free: check?.free ?? null,
+                      total: check?.total ?? null,
+                      tooMany: applied.guests > resort.max_guests,
+                      onClear: () => {
+                        setDraft({ checkIn: "", checkOut: "", guests: applied.guests });
+                        setParams({}, { replace: true });
+                      },
+                    }
+                  : null
+              }
+            />
           )}
         </div>
       </section>
@@ -210,7 +195,18 @@ export default function Home() {
                 Loved by guests
                 <br className="hidden sm:block" /> who stayed with us.
               </h2>
-              <p className="mt-4 max-w-xs text-sm text-ink-muted">Real feedback from memorable Vivienda stays.</p>
+              <p className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-ink">
+                <ThumbsUp className="size-4 text-brand-700" /> {RECOMMEND.percent}% recommend · {RECOMMEND.count} reviews
+              </p>
+              <p className="mt-2 max-w-xs text-sm text-ink-muted">Real recommendations from guests on our Facebook page.</p>
+              <a
+                href={s?.facebook_url || SITE.facebook}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-2 inline-block text-sm font-medium text-brand-700 underline underline-offset-4"
+              >
+                Read them on Facebook
+              </a>
               <Link
                 to="/#stay"
                 className="mt-6 hidden h-10 items-center rounded-full bg-brand-700 px-6 text-sm font-medium text-sand-50 shadow-level-2 hover:bg-brand-700/90 lg:inline-flex"
@@ -316,5 +312,121 @@ function PhotoGallery() {
         </div>
       )}
     </section>
+  );
+}
+
+interface SearchState {
+  label: string;
+  nights: number;
+  loading: boolean;
+  free: boolean | null;
+  total: number | null;
+  tooMany: boolean;
+  onClear: () => void;
+}
+
+/** The one resort, as a feature: photo mosaic on the left, the facts and the price on the right. */
+function ResortCard({ unit, href, search }: { unit: Unit; href: string; search: SearchState | null }) {
+  const photos = unitPhotos(unit).slice(0, 3);
+  const booked = search?.free === false;
+  return (
+    <div className="grid overflow-hidden rounded-3xl border border-sand-200/70 bg-white shadow-level-3 lg:grid-cols-[1.25fr_1fr]">
+      <Link to={href} className="group grid h-72 grid-cols-3 grid-rows-2 gap-1.5 p-1.5 sm:h-[440px]">
+        {photos.map((src, i) => (
+          <div
+            key={src}
+            className={cn(
+              "overflow-hidden bg-sand-100",
+              i === 0 ? "col-span-2 row-span-2 rounded-l-[20px]" : i === 1 ? "rounded-tr-[20px]" : "rounded-br-[20px]",
+            )}
+          >
+            <img
+              src={src}
+              alt=""
+              loading="lazy"
+              className="size-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+          </div>
+        ))}
+      </Link>
+
+      <div className="flex flex-col p-6 sm:p-8">
+        <p className="text-[11px] font-semibold tracking-[0.2em] text-brand-700 uppercase">The whole resort, just for you</p>
+        <h2 className="site-display mt-3 text-3xl leading-tight text-brand-700 sm:text-4xl">{unit.name}</h2>
+        <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-soft">
+          <span className="inline-flex items-center gap-1.5">
+            <MapPin className="size-4 text-brand-700" /> {LOCATION_LABEL}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <ThumbsUp className="size-4 text-brand-700" /> {RECOMMEND.percent}% recommend
+          </span>
+        </p>
+
+        <ul className="mt-6 grid gap-3 text-sm text-ink sm:grid-cols-2">
+          <Fact icon={<Waves />}>Adult and kids pool, exclusive</Fact>
+          <Fact icon={<Users />}>Up to {unit.max_guests} guests</Fact>
+          {SLEEPING.map((r) => (
+            <Fact key={r.room} icon={<BedDouble />}>
+              {r.room}: {r.beds.slice(0, 2).join(", ")}
+            </Fact>
+          ))}
+          <Fact icon={<Sparkles />}>Karaoke, billiards, bonfire, BBQ</Fact>
+          <Fact icon={<Wifi />}>PLDT WiFi, Netflix & YouTube</Fact>
+        </ul>
+
+        <div className="mt-auto pt-8">
+          {search ? (
+            <div className="rounded-2xl bg-sand-100 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-ink">
+                  {search.label} · {search.nights} night{search.nights === 1 ? "" : "s"}
+                </p>
+                <button
+                  type="button"
+                  onClick={search.onClear}
+                  className="cursor-pointer text-xs font-medium text-ink-muted underline underline-offset-4 hover:text-ink"
+                >
+                  Clear
+                </button>
+              </div>
+              {search.loading || search.free === null ? (
+                <p className="mt-1 text-sm text-ink-muted">Checking availability…</p>
+              ) : booked ? (
+                <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-red-700">
+                  <XCircle className="size-4" /> Already booked those dates. Try others.
+                </p>
+              ) : (
+                <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-emerald-800">
+                  <CheckCircle2 className="size-4" /> Available ·{" "}
+                  <span className="font-semibold">{money(search.total ?? 0, true)}</span> total
+                </p>
+              )}
+              {search.tooMany && (
+                <p className="mt-1 text-xs text-ink-muted">We fit up to {unit.max_guests}. Message us for bigger groups.</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-ink-muted">
+              From <span className="text-2xl font-semibold text-ink">{money(unit.base_rate, true)}</span> / night
+            </p>
+          )}
+          <Link
+            to={href}
+            className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-700 text-sm font-semibold text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90"
+          >
+            {search && !booked ? "Reserve these dates" : "See dates & book"} <ArrowRight className="size-4" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Fact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <span className="mt-0.5 text-brand-700 [&_svg]:size-4">{icon}</span>
+      <span>{children}</span>
+    </li>
   );
 }

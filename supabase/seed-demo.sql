@@ -1,7 +1,7 @@
 -- ─────────────────────────────────────────────────────────────
 -- DEMO DATA for Vivienda. Paste into Supabase → SQL Editor → Run.
 --
--- Adds three sample stays (Whole Resort, A-House, Stilt Room), 12 sample guests, ~18 bookings around today
+-- Adds the resort as one listing (booked whole), 12 sample guests, ~18 bookings around today
 -- (past, in house, arriving, upcoming, requests, cancelled), their payments,
 -- six months of expenses, a holiday rate and a maintenance block.
 -- Dates are relative to the day you run it, so the dashboard looks alive.
@@ -17,33 +17,24 @@ delete from public.payments where booking_id in (
 delete from public.bookings where guest_id in (select id from public.guests where email like '%@example.com');
 delete from public.guests where email like '%@example.com';
 delete from public.expenses where notes = 'demo';
-delete from public.rate_overrides where unit_id in (select id from public.units where slug in ('whole-resort','a-house','stilt-room','aframe-villa','garden-loft'));
-delete from public.blocked_dates where unit_id in (select id from public.units where slug in ('whole-resort','a-house','stilt-room','aframe-villa','garden-loft'));
-delete from public.units where slug in ('whole-resort','a-house','stilt-room','aframe-villa','garden-loft');
+delete from public.rate_overrides where unit_id in (select id from public.units where slug in ('vivienda','whole-resort','a-house','stilt-room','aframe-villa','garden-loft'));
+delete from public.blocked_dates where unit_id in (select id from public.units where slug in ('vivienda','whole-resort','a-house','stilt-room','aframe-villa','garden-loft'));
+delete from public.units where slug in ('vivienda','whole-resort','a-house','stilt-room','aframe-villa','garden-loft');
 
--- 1. Stays. Photos point at the images shipped with the site.
+-- 1. The resort. One listing: guests always book the whole place.
+-- Rates are placeholders; set the real ones in the admin under Rooms & rates.
 insert into public.units (name, slug, description, capacity, max_guests, base_rate, weekend_rate, extra_guest_fee, amenities, photos, sort_order) values
-('Whole Resort Overnight', 'whole-resort',
- 'Looking for a private getaway with your family or tropa? This is it. The whole of Vivienda for your group: the private adult and kids pool, the A-House, the Stilt Room, the garden, and the pavilion with karaoke and billiards. 22 hours, check-in 2:00 PM, check-out 12:00 NN.',
- 15, 25, 14999, 17999, 300,
- array['Private pool, adult and kids','A-House and Stilt Room','Karaoke','Bonfire station','BBQ griller','Refrigerator','2-burner stove','Basic utensils','Dining area with tables and chairs','Badminton, billiards and board games','PLDT WiFi','Smart TV','Free Netflix & YouTube'],
- array['/images/aerial.jpg','/images/pool-waterfall.jpg','/images/pavilion-pool.jpg','/images/bunk-room.jpg','/images/garden-umbrellas.jpg','/images/billiards.jpg','/images/event-setup.jpg','/images/kitchen.jpg','/images/playground.jpg'], 1),
-('A-House', 'a-house',
- 'The glass A-frame by the pool. Sleeps up to 7: 2 double-size beds, 1 queen-size sofa bed, and a single bed upon request. Pool, karaoke and the rest of the amenities included.',
- 4, 7, 8999, 10999, 500,
- array['2 double-size beds','1 queen-size sofa bed','Single bed (upon request)','Private pool access','Smart TV','Free Netflix & YouTube','PLDT WiFi','Karaoke'],
- array['/images/pool-overcast.jpg','/images/aframe-stairs.jpg','/images/aframe-loft-bed.jpg','/images/aframe-tv.jpg','/images/aframe-lounge.jpg'], 2),
-('Stilt Room', 'stilt-room',
- 'The upstairs group room with a balcony over the fields. Sleeps up to 14: 3 double-size double-deck beds and 1 queen sofa bed.',
- 8, 14, 9999, 11999, 400,
- array['3 double-size double-deck beds','1 queen sofa bed','Balcony','Air-conditioning','Private pool access','PLDT WiFi'],
- array['/images/bunk-room.jpg','/images/bunk-balcony.jpg','/images/lounge-sign.jpg','/images/garden-wide.jpg','/images/front.jpg'], 3);
+('Vivienda Private Resort', 'vivienda',
+ 'Looking for a private getaway with your family or tropa? This is it. The whole of Vivienda is yours: the private adult and kids pool, the A-House, the Stilt Room, the garden, and the pavilion with karaoke and billiards. 22 hours, check-in 2:00 PM, check-out 12:00 NN.',
+ 21, 30, 14999, 17999, 300,
+ array['Private pool, adult and kids','Karaoke','Bonfire station','BBQ griller','Refrigerator','2-burner stove','Basic utensils','Dining area with tables and chairs','Badminton, billiards and board games','PLDT WiFi','Smart TV','Free Netflix & YouTube'],
+ array['/images/aerial.jpg','/images/pool-waterfall.jpg','/images/aframe-stairs.jpg','/images/bunk-room.jpg','/images/pavilion-pool.jpg','/images/garden-umbrellas.jpg','/images/billiards.jpg','/images/kitchen.jpg','/images/playground.jpg'], 1);
 
 -- 2. A holiday rate and a maintenance block.
 insert into public.rate_overrides (unit_id, date, rate)
-select id, current_date + d, 19999 from public.units, generate_series(35, 36) d where slug = 'whole-resort';
+select id, current_date + d, 19999 from public.units, generate_series(35, 36) d where slug = 'vivienda';
 insert into public.blocked_dates (unit_id, date, reason)
-select id, current_date + d, 'Maintenance' from public.units, generate_series(40, 42) d where slug = 'stilt-room';
+select id, current_date + d, 'Maintenance' from public.units, generate_series(40, 42) d where slug = 'vivienda';
 
 -- 3. Guests.
 insert into public.guests (full_name, email, phone, notes) values
@@ -64,24 +55,24 @@ insert into public.guests (full_name, email, phone, notes) values
 drop table if exists demo_b;
 create temporary table demo_b (email text, slug text, a int, b int, pax int, status text, source text, paid_pct int, pay_method text, req text);
 insert into demo_b values
- ('angela.mercado@example.com','whole-resort', -80,-79, 20,'checked_out','facebook',100,'gcash','Birthday celebration'),
- ('ramon.deleon@example.com',  'a-house',    -62,-60,  6,'checked_out','website', 100,'bank_transfer',''),
- ('trisha.lim@example.com',    'stilt-room',   -50,-48,  2,'checked_out','website', 100,'gcash',''),
- ('paolo.reyes@example.com',   'whole-resort', -44,-43, 25,'checked_out','phone',   100,'bank_transfer','Company outing, needs sound system'),
- ('marco.dizon@example.com',   'a-house',    -31,-29,  6,'checked_out','website', 100,'gcash',''),
- ('bea.santos@example.com',    'whole-resort', -20,-18, 18,'checked_out','facebook',100,'cash',''),
- ('trisha.lim@example.com',    'stilt-room',   -15,-13,  3,'checked_out','website', 100,'gcash','Anniversary'),
- ('katrina.v@example.com',     'a-house',     -1,  1,  7,'checked_in', 'website',  50,'gcash',''),
- ('james.tan@example.com',     'stilt-room',     0,  2,  2,'confirmed',  'website',  50,'card','Late arrival around 9 PM'),
- ('mika.gonzales@example.com', 'whole-resort',   5,  6, 22,'confirmed',  'facebook', 50,'gcash','Debut party'),
- ('leo.aquino@example.com',    'a-house',      9, 11,  6,'pending',    'website',   0,'gcash',''),
- ('carla.bautista@example.com','stilt-room',    14, 15,  2,'pending',    'website',   0,null,''),
- ('nico.fernandez@example.com','whole-resort',  21, 22, 15,'confirmed',  'website',  50,'bank_transfer',''),
- ('angela.mercado@example.com','a-house',     30, 32,  7,'confirmed',  'website',  50,'gcash','Repeat guest'),
- ('ramon.deleon@example.com',  'whole-resort',  35, 36, 20,'pending',    'facebook',  0,null,'Holiday reunion'),
- ('marco.dizon@example.com',   'stilt-room',     7,  8,  2,'cancelled',  'website',   0,null,''),
- ('bea.santos@example.com',    'whole-resort',  12, 13, 25,'declined',   'website',   0,null,''),
- ('paolo.reyes@example.com',   'a-house',     18, 20,  7,'confirmed',  'phone',   100,'bank_transfer','');
+ ('angela.mercado@example.com','vivienda', -80,-79, 20,'checked_out','facebook',100,'gcash','Birthday celebration'),
+ ('ramon.deleon@example.com',  'vivienda', -62,-61, 12,'checked_out','website', 100,'bank_transfer',''),
+ ('trisha.lim@example.com',    'vivienda', -50,-49,  8,'checked_out','website', 100,'gcash',''),
+ ('paolo.reyes@example.com',   'vivienda', -44,-43, 28,'checked_out','phone',   100,'bank_transfer','Company outing, needs sound system'),
+ ('marco.dizon@example.com',   'vivienda', -31,-30, 15,'checked_out','website', 100,'gcash',''),
+ ('bea.santos@example.com',    'vivienda', -20,-19, 18,'checked_out','facebook',100,'cash',''),
+ ('trisha.lim@example.com',    'vivienda', -15,-14, 10,'checked_out','website', 100,'gcash','Anniversary'),
+ ('katrina.v@example.com',     'vivienda',  -1,  1, 14,'checked_in', 'website',  50,'gcash',''),
+ ('james.tan@example.com',     'vivienda',   1,  2,  9,'confirmed',  'website',  50,'card','Late arrival around 9 PM'),
+ ('mika.gonzales@example.com', 'vivienda',   5,  6, 25,'confirmed',  'facebook', 50,'gcash','Debut party'),
+ ('marco.dizon@example.com',   'vivienda',   7,  8, 12,'cancelled',  'website',   0,null,''),
+ ('leo.aquino@example.com',    'vivienda',   9, 10, 16,'pending',    'website',   0,'gcash',''),
+ ('bea.santos@example.com',    'vivienda',  12, 13, 25,'declined',   'website',   0,null,''),
+ ('carla.bautista@example.com','vivienda',  14, 15, 10,'pending',    'website',   0,null,''),
+ ('paolo.reyes@example.com',   'vivienda',  18, 19, 30,'confirmed',  'phone',   100,'bank_transfer',''),
+ ('nico.fernandez@example.com','vivienda',  21, 22, 15,'confirmed',  'website',  50,'bank_transfer',''),
+ ('angela.mercado@example.com','vivienda',  30, 31, 20,'confirmed',  'website',  50,'gcash','Repeat guest'),
+ ('ramon.deleon@example.com',  'vivienda',  35, 36, 24,'pending',    'facebook',  0,null,'Holiday reunion');
 
 do $$
 declare r record; u public.units; gid uuid; bid uuid; q record;

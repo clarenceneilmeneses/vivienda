@@ -112,11 +112,9 @@ export default function Stay() {
   return (
     <div className="mx-auto max-w-7xl px-4 pt-4 pb-28 sm:px-8 lg:pb-16">
       <nav aria-label="Breadcrumb" className="mb-4 text-sm text-ink-muted">
-        <Link to="/#stay" className="hover:text-brand-700">
-          Stays
+        <Link to="/" className="hover:text-brand-700">
+          Home
         </Link>
-        <span className="mx-1.5">/</span>
-        <span>Alitagtag</span>
         <span className="mx-1.5">/</span>
         <span className="font-medium text-ink">{unit.name}</span>
       </nav>
@@ -224,9 +222,9 @@ export default function Stay() {
           </Block>
 
           {REVIEWS.length > 0 && (
-            <Block title="Reviews">
+            <Block title={`Reviews · ${REVIEWS.length} recommend`}>
               <div className="grid gap-4 sm:grid-cols-2">
-                {REVIEWS.slice(0, 4).map((r) => (
+                {REVIEWS.slice(0, 6).map((r) => (
                   <ReviewCard key={r.author} {...r} />
                 ))}
               </div>
