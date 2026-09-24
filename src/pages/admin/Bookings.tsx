@@ -169,7 +169,7 @@ export default function Bookings() {
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">{money(b.total)}</td>
                       <td
-                        className={`px-4 py-3 text-right tabular-nums ${b.balance > 0 && b.status !== "cancelled" && b.status !== "declined" ? "font-medium text-clay-600" : "text-ink-muted"}`}
+                        className={`px-4 py-3 text-right tabular-nums ${b.balance > 0 && b.status !== "cancelled" && b.status !== "declined" ? "font-medium text-terra-600" : "text-ink-muted"}`}
                       >
                         {money(b.balance)}
                       </td>

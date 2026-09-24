@@ -1,32 +1,113 @@
-import { Link, Outlet } from "react-router-dom";
-import { Mail, MapPin, MessageCircle, Phone } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Mail, MapPin, Phone } from "lucide-react";
 import { useSettings } from "../../lib/queries";
+import { SITE } from "../../lib/site";
+import { cn } from "../../lib/utils";
+
+/** The logo mark beside the name, set like Malaya's wordmark: tracked display type, a thin line beneath. */
+export function Wordmark({ size = "header" }: { size?: "header" | "footer" }) {
+  const big = size === "header";
+  return (
+    <span className="inline-flex items-center gap-3">
+      <img
+        src="/images/logo-192.png"
+        alt=""
+        className={cn("shrink-0 rounded-full shadow-level-2", big ? "size-11" : "size-14")}
+      />
+      <span className="inline-block leading-none">
+        <span
+          className={cn(
+            "block font-display font-normal text-brand-700",
+            big ? "text-[1.55rem] tracking-[0.2em]" : "text-[1.5rem] tracking-[0.22em]",
+          )}
+        >
+          VIVIENDA
+        </span>
+        <span className="mt-1 block pl-[0.3em] text-center text-[9px] font-medium tracking-[0.3em] text-brand-700 uppercase">
+          Our Tropical Haven
+        </span>
+      </span>
+    </span>
+  );
+}
+
+/** Slides the header away on the way down and back on the way up. */
+function useHideOnScroll() {
+  const [hidden, setHidden] = useState(false);
+  const last = useRef(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const onScroll = () => {
+      const y = window.scrollY;
+      const delta = y - last.current;
+      if (Math.abs(delta) < 8) return;
+      setHidden(delta > 0 && y > 120);
+      last.current = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return hidden;
+}
+
+const navClass = ({ isActive }: { isActive: boolean }) =>
+  cn("transition-colors hover:text-brand-700", isActive && "font-semibold");
 
 export default function PublicLayout() {
   const { data: s } = useSettings();
-  const name = s?.resort_name ?? "Vivienda";
+  const hidden = useHideOnScroll();
+  const { pathname, hash } = useLocation();
+
+  // New page starts at the top, unless it's a jump to a section (Home handles those).
+  useEffect(() => {
+    if (!hash) window.scrollTo(0, 0);
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const phone = s?.phone || SITE.phone;
+  const email = s?.email || SITE.email;
+  const address = s?.address || SITE.address;
+  const facebook = s?.facebook_url || SITE.facebook;
+  const mapUrl = s?.map_url || SITE.mapUrl;
+  const telHref = phone === SITE.phone ? SITE.phoneHref : `tel:${phone.replace(/[^\d+]/g, "")}`;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-30 border-b border-sand-200 bg-sand-50/90 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
-          <Link to="/" className="font-display text-xl font-semibold text-forest-700">
-            {name}
+    <div data-site="public" className="flex min-h-screen flex-col bg-white">
+      <header
+        className={cn(
+          "sticky top-0 z-30 bg-white/85 backdrop-blur transition-transform duration-300",
+          hidden ? "-translate-y-full" : "translate-y-0",
+        )}
+      >
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-8">
+          <Link to="/" aria-label="Vivienda home">
+            <Wordmark />
           </Link>
-          <nav className="flex items-center gap-1 text-sm">
-            <Link to="/#stay" className="hidden rounded-md px-3 py-2 text-ink-soft hover:text-ink sm:block">
+          <nav className="hidden items-center gap-8 text-sm text-ink md:flex">
+            <Link to="/#stay" className="transition-colors hover:text-brand-700">
               Stay
             </Link>
-            <Link to="/my-booking" className="rounded-md px-3 py-2 text-ink-soft hover:text-ink">
-              My booking
+            <Link to="/#gallery" className="transition-colors hover:text-brand-700">
+              Gallery
             </Link>
+            <Link to="/#contact" className="transition-colors hover:text-brand-700">
+              Contact
+            </Link>
+            <NavLink to="/my-booking" className={navClass}>
+              My Booking
+            </NavLink>
+          </nav>
+          <div className="flex items-center gap-3">
+            <NavLink to="/my-booking" className={cn(navClass({ isActive: false }), "hidden text-sm whitespace-nowrap sm:inline md:hidden")}>
+              My Booking
+            </NavLink>
             <Link
               to="/book"
-              className="ml-1 rounded-lg bg-forest-700 px-4 py-2 font-medium text-sand-50 hover:bg-forest-600"
+              className="inline-flex h-10 items-center rounded-full bg-brand-700 px-5 text-sm whitespace-nowrap font-medium text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90 sm:px-6"
             >
-              Book now
+              Book Now
             </Link>
-          </nav>
+          </div>
         </div>
       </header>
 
@@ -34,62 +115,112 @@ export default function PublicLayout() {
         <Outlet />
       </main>
 
-      <footer className="border-t border-sand-200 bg-sand-100">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-3">
+      <footer id="contact" className="scroll-mt-4 border-t border-sand-200/70 bg-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-14 pb-14 sm:grid-cols-2 sm:px-8 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
           <div>
-            <p className="font-display text-lg font-semibold text-forest-700">{name}</p>
-            {s?.tagline && <p className="mt-1 text-sm text-ink-muted">{s.tagline}</p>}
-          </div>
-          <ul className="space-y-2 text-sm text-ink-soft">
-            {s?.address && (
-              <li className="flex gap-2">
-                <MapPin className="mt-0.5 size-4 shrink-0 text-ink-muted" />
-                {s.map_url ? (
-                  <a href={s.map_url} target="_blank" rel="noreferrer" className="hover:text-ink hover:underline">
-                    {s.address}
-                  </a>
-                ) : (
-                  s.address
-                )}
-              </li>
-            )}
-            {s?.phone && (
-              <li className="flex gap-2">
-                <Phone className="mt-0.5 size-4 shrink-0 text-ink-muted" />
-                <a href={`tel:${s.phone}`} className="hover:text-ink">
-                  {s.phone}
-                </a>
-              </li>
-            )}
-            {s?.email && (
-              <li className="flex gap-2">
-                <Mail className="mt-0.5 size-4 shrink-0 text-ink-muted" />
-                <a href={`mailto:${s.email}`} className="hover:text-ink">
-                  {s.email}
-                </a>
-              </li>
-            )}
-          </ul>
-          <div className="flex flex-col items-start gap-3 text-sm sm:items-end">
-            {s?.facebook_url && (
-              <a
-                href={s.facebook_url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 text-ink-soft hover:text-ink"
-              >
-                <MessageCircle className="size-4" /> Message us on Facebook
-              </a>
-            )}
-            <p className="text-xs text-ink-muted">
-              © {new Date().getFullYear()} {name} ·{" "}
-              <Link to="/admin" className="hover:underline">
-                Staff
-              </Link>
+            <Wordmark size="footer" />
+            <p className="mt-5 max-w-xs text-sm text-ink">A private pool resort in Alitagtag, Batangas.</p>
+            <p className="mt-5 text-[11px] text-brand-700">
+              &copy; {new Date().getFullYear()} {s?.resort_name ?? SITE.name}. All rights reserved.
             </p>
           </div>
+
+          <FooterColumn title="EXPLORE">
+            <FooterLink to="/#stay">Stay</FooterLink>
+            <FooterLink to="/#gallery">Gallery</FooterLink>
+            <FooterLink to="/book">Book a stay</FooterLink>
+          </FooterColumn>
+
+          <FooterColumn title="SUPPORT">
+            <FooterLink to="/my-booking">My Booking</FooterLink>
+            <FooterLink to="/#policies">House rules</FooterLink>
+            <FooterLink href={facebook} external>
+              Facebook page
+            </FooterLink>
+          </FooterColumn>
+
+          <FooterColumn title="CONTACT">
+            <li>
+              <a href={telHref} className="inline-flex items-center gap-2.5 text-ink-muted transition-colors hover:text-brand-700">
+                <Phone className="size-4 text-brand-700" /> {phone}
+              </a>
+            </li>
+            <li>
+              <a
+                href={`mailto:${email}`}
+                className="inline-flex items-center gap-2.5 break-all text-ink-muted transition-colors hover:text-brand-700"
+              >
+                <Mail className="size-4 shrink-0 text-brand-700" /> {email}
+              </a>
+            </li>
+            <li>
+              <a
+                href={mapUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-start gap-2.5 text-ink-muted transition-colors hover:text-brand-700"
+              >
+                <MapPin className="mt-0.5 size-4 shrink-0 text-brand-700" /> {address}
+              </a>
+            </li>
+            <li>
+              <a
+                href={facebook}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label="Vivienda on Facebook"
+                className="inline-flex items-center gap-2.5 text-ink-muted transition-colors hover:text-brand-700"
+              >
+                <FacebookMark /> Facebook
+              </a>
+            </li>
+          </FooterColumn>
         </div>
       </footer>
     </div>
+  );
+}
+
+function FooterColumn({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold tracking-[0.2em] text-brand-700">{title}</p>
+      <ul className="mt-4 space-y-3.5 text-[13px]">{children}</ul>
+    </div>
+  );
+}
+
+function FooterLink({
+  to,
+  href,
+  external,
+  children,
+}: {
+  to?: string;
+  href?: string;
+  external?: boolean;
+  children: ReactNode;
+}) {
+  const cls = "text-ink-muted transition-colors hover:text-brand-700";
+  return (
+    <li>
+      {to ? (
+        <Link to={to} className={cls}>
+          {children}
+        </Link>
+      ) : (
+        <a href={href} className={cls} {...(external ? { target: "_blank", rel: "noreferrer noopener" } : {})}>
+          {children}
+        </a>
+      )}
+    </li>
+  );
+}
+
+function FacebookMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4 text-brand-700" fill="currentColor" aria-hidden>
+      <path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z" />
+    </svg>
   );
 }

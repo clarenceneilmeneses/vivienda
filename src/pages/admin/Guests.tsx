@@ -128,7 +128,7 @@ export default function Guests() {
                     <td className="px-4 py-3 text-right tabular-nums">
                       {g.stays}
                       {g.stays > 1 && (
-                        <span className="ml-1.5 rounded-full bg-forest-50 px-1.5 text-xs text-forest-700">Repeat</span>
+                        <span className="ml-1.5 rounded-full bg-brand-50 px-1.5 text-xs text-brand-700">Repeat</span>
                       )}
                     </td>
                     <td className="hidden px-4 py-3 text-right tabular-nums sm:table-cell">{money(g.spent, true)}</td>

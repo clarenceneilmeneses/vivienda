@@ -2,12 +2,12 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
-import { AlertCircle, ArrowRight, LogIn, LogOut } from "lucide-react";
+import { AlertCircle, ArrowRight, BedDouble, LogIn, LogOut, TrendingUp, Users, Wallet } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useSettings, useUnits } from "../../lib/queries";
 import { isoDate, money, plural, stayRange } from "../../lib/format";
 import type { BookingSummary } from "../../lib/types";
-import { Card, CardHeader, EmptyState, Spinner, StatusBadge } from "../../components/ui";
+import { Card, CardHeader, EmptyState, Spinner, StatTile, StatusBadge } from "../../components/ui";
 import { IncomeExpenseChart, type MonthPoint } from "../../components/admin/Charts";
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
 import { useAllBookings } from "./Bookings";
@@ -103,10 +103,10 @@ export default function Dashboard() {
   return (
     <>
       <div className="mb-6">
-        <h1 className="font-display text-2xl font-semibold sm:text-3xl">{greeting}</h1>
-        <p className="mt-1 text-sm text-ink-muted">
+        <p className="eyebrow mb-1">
           {format(now, "EEEE, MMMM d")} · {settings?.resort_name}
         </p>
+        <h1 className="font-display text-2xl font-medium sm:text-[28px]">{greeting}</h1>
       </div>
 
       {(stats.pending.length > 0 || stats.departures.length > 0 || stats.arrivingToday.length > 0) && (
@@ -129,20 +129,34 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile
-          label={`Income · ${format(now, "MMMM")}`}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatTile
+          label={`Income · ${format(now, "MMM")}`}
+          icon={<TrendingUp />}
           value={money(thisMonth?.income ?? 0, true)}
-          note={incomeChange != null ? `${incomeChange >= 0 ? "+" : ""}${incomeChange}% vs last month` : undefined}
+          sub={incomeChange != null ? `${incomeChange >= 0 ? "+" : ""}${incomeChange}% vs last month` : undefined}
         />
-        <Tile label="Occupancy this month" value={`${stats.occupancy}%`} note={`${plural(stats.nights, "night")} sold`} />
-        <Tile label="In house now" value={String(stats.inHouse.length)} note={plural(stats.inHouse.reduce((s, b) => s + b.guests_count, 0), "guest")} />
-        <Tile
-          label="Unpaid balances"
-          value={money(stats.unpaidTotal, true)}
-          note={plural(stats.unpaid.length, "booking")}
-          to="/admin/finance"
+        <StatTile
+          label="Occupancy"
+          icon={<BedDouble />}
+          value={`${stats.occupancy}%`}
+          sub={`${plural(stats.nights, "night")} sold this month`}
         />
+        <StatTile
+          label="In house now"
+          icon={<Users />}
+          value={String(stats.inHouse.length)}
+          sub={plural(stats.inHouse.reduce((s, b) => s + b.guests_count, 0), "guest")}
+        />
+        <Link to="/admin/finance" className="block rounded-2xl focus-visible:outline-2 focus-visible:outline-brand-700">
+          <StatTile
+            label="Unpaid balances"
+            icon={<Wallet />}
+            tone={stats.unpaidTotal > 0 ? "warn" : "default"}
+            value={money(stats.unpaidTotal, true)}
+            sub={plural(stats.unpaid.length, "booking")}
+          />
+        </Link>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
@@ -150,15 +164,15 @@ export default function Dashboard() {
           <CardHeader
             title="Arriving in the next 7 days"
             action={
-              <Link to="/admin/calendar" className="text-xs text-ink-muted hover:text-ink">
-                Calendar →
+              <Link to="/admin/calendar" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline">
+                Calendar <ArrowRight className="size-3.5" />
               </Link>
             }
           />
           {stats.arrivals.length === 0 ? (
             <EmptyState title="No arrivals this week" />
           ) : (
-            <ul className="divide-y divide-sand-200">
+            <ul className="divide-y divide-sand-200/80">
               {stats.arrivals.map((b) => (
                 <ArrivalRow key={b.id} b={b} today={today} onOpen={() => setOpenId(b.id)} />
               ))}
@@ -169,8 +183,8 @@ export default function Dashboard() {
           <CardHeader
             title="Last 6 months"
             action={
-              <Link to="/admin/finance" className="text-xs text-ink-muted hover:text-ink">
-                Finance →
+              <Link to="/admin/finance" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline">
+                Finance <ArrowRight className="size-3.5" />
               </Link>
             }
           />
@@ -191,7 +205,7 @@ function ArrivalRow({ b, today, onOpen }: { b: BookingSummary; today: string; on
   return (
     <li>
       <button onClick={onOpen} className="flex w-full items-center gap-4 px-5 py-3 text-left hover:bg-sand-50">
-        <div className="w-20 shrink-0 text-sm font-medium">{when}</div>
+        <div className="w-20 shrink-0 text-sm font-medium text-brand-700">{when}</div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">{b.guest_name}</p>
           <p className="truncate text-xs text-ink-muted">
@@ -200,29 +214,18 @@ function ArrivalRow({ b, today, onOpen }: { b: BookingSummary; today: string; on
         </div>
         <div className="hidden text-right sm:block">
           <StatusBadge status={b.status} />
-          {b.balance > 0 && <p className="mt-1 text-xs text-clay-600">{money(b.balance, true)} due</p>}
+          {b.balance > 0 && <p className="mt-1 text-xs text-terra-600">{money(b.balance, true)} due</p>}
         </div>
       </button>
     </li>
   );
 }
 
-function Tile({ label, value, note, to }: { label: string; value: string; note?: string; to?: string }) {
-  const body = (
-    <Card className="h-full p-4 transition-colors hover:border-sand-300">
-      <p className="truncate text-xs text-ink-muted">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {note && <p className="mt-0.5 text-xs text-ink-muted">{note}</p>}
-    </Card>
-  );
-  return to ? <Link to={to}>{body}</Link> : body;
-}
-
 function Alert({ to, children, icon }: { to: string; children: ReactNode; icon?: ReactNode }) {
   return (
     <Link
       to={to}
-      className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 hover:bg-amber-100"
+      className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 shadow-level-1 transition-colors hover:bg-amber-100"
     >
       {icon ?? <AlertCircle className="size-4" />}
       <span className="flex-1">{children}</span>

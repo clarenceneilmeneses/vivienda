@@ -288,7 +288,7 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
                 </div>
               </div>
             ))}
-            <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-sand-300 text-xs text-ink-muted hover:border-forest-500 hover:text-ink">
+            <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-sand-300 text-xs text-ink-muted hover:border-brand-500 hover:text-ink">
               <ImagePlus className="size-5" />
               {uploading ? "Uploading…" : "Add photos"}
               <input

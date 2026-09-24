@@ -305,7 +305,7 @@ function BookingFormInner({
                       onClick={() => setGuestId(g.id)}
                       className={cn(
                         "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm",
-                        guestId === g.id ? "bg-forest-50" : "hover:bg-sand-50",
+                        guestId === g.id ? "bg-brand-50" : "hover:bg-sand-50",
                       )}
                     >
                       <span className="font-medium">{g.full_name}</span>
@@ -401,7 +401,7 @@ function BookingFormInner({
               type="checkbox"
               checked={emailGuest}
               onChange={(e) => setEmailGuest(e.target.checked)}
-              className="size-4 accent-forest-700"
+              className="size-4 accent-brand-700"
             />
             Email the guest a {status === "pending" ? "booking summary" : "confirmation"} (if they have an email)
           </label>

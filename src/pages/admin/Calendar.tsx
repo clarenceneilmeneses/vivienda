@@ -23,7 +23,7 @@ import { BookingForm } from "../../components/admin/BookingForm";
 
 const BAR: Record<BookingStatus, string> = {
   pending: "bg-amber-100 text-amber-900 ring-amber-300",
-  confirmed: "bg-forest-600 text-white ring-forest-700",
+  confirmed: "bg-brand-600 text-white ring-brand-700",
   checked_in: "bg-sky-600 text-white ring-sky-700",
   checked_out: "bg-sand-300 text-ink-soft ring-sand-300",
   cancelled: "hidden",
@@ -32,7 +32,7 @@ const BAR: Record<BookingStatus, string> = {
 
 const LEGEND: { label: string; className: string }[] = [
   { label: "Pending", className: "bg-amber-100 ring-1 ring-amber-300" },
-  { label: "Confirmed", className: "bg-forest-600" },
+  { label: "Confirmed", className: "bg-brand-600" },
   { label: "Checked in", className: "bg-sky-600" },
   { label: "Checked out", className: "bg-sand-300" },
   { label: "Blocked", className: "hatch bg-sand-100 ring-1 ring-sand-300" },
@@ -165,7 +165,7 @@ export default function Calendar() {
                       className={cn(
                         "py-2",
                         isWeekend(d) && "bg-sand-50",
-                        iso === today && "bg-clay-50 font-semibold text-clay-600",
+                        iso === today && "bg-brand-50 font-semibold text-brand-700",
                       )}
                     >
                       <div className="text-[10px] text-ink-muted uppercase">{format(d, "EEEEE")}</div>
@@ -201,13 +201,13 @@ export default function Calendar() {
                           style={{ gridRow: 1, gridColumn: i + 2 }}
                           onClick={() => setCell({ unit: u, date: iso })}
                           className={cn(
-                            "flex h-16 flex-col items-center justify-end border-r border-sand-100 pb-1 text-[10px] hover:bg-forest-50",
+                            "flex h-16 flex-col items-center justify-end border-r border-sand-100 pb-1 text-[10px] hover:bg-brand-50",
                             isWeekend(d) && "bg-sand-50",
                             blocked && "hatch bg-sand-100",
                           )}
                           aria-label={`${u.name}, ${format(d, "MMMM d")}${blocked ? ", blocked" : ""}`}
                         >
-                          <span className={cn("tabular-nums", override ? "font-semibold text-clay-600" : "text-ink-muted")}>
+                          <span className={cn("tabular-nums", override ? "font-semibold text-terra-600" : "text-ink-muted")}>
                             {compactMoney(nightlyRate(u, iso, rates))}
                           </span>
                         </button>
@@ -361,7 +361,7 @@ function CellModal({
 
         <div className="space-y-2 rounded-lg border border-sand-200 p-3">
           <p className="flex items-center gap-2 text-sm font-medium">
-            <Tag className="size-4 text-clay-500" /> Price per night
+            <Tag className="size-4 text-brand-700" /> Price per night
           </p>
           <p className="text-xs text-ink-muted">
             Normal rate {money(nightlyRate(unit, date))}
@@ -407,7 +407,7 @@ function CellModal({
 
         <div className="space-y-2 rounded-lg border border-sand-200 p-3">
           <p className="flex items-center gap-2 text-sm font-medium">
-            <Ban className="size-4 text-clay-500" /> {blocked ? "Blocked" : "Block dates"}
+            <Ban className="size-4 text-brand-700" /> {blocked ? "Blocked" : "Block dates"}
           </p>
           {blocked ? (
             <>

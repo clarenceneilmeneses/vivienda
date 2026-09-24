@@ -38,6 +38,7 @@ export interface BookingRow {
 
 export interface SettingsRow {
   resort_name: string;
+  tagline: string;
   email: string;
   phone: string;
   address: string;
@@ -134,25 +135,25 @@ interface Built {
 
 function layout(s: SettingsRow, heading: string, body: string, cta?: { href: string; label: string }) {
   const contact = [s.phone, s.email].filter(Boolean).map(esc).join(" · ");
-  return `<!doctype html><html><body style="margin:0;background:#f6f1e9;font-family:Inter,Segoe UI,Arial,sans-serif;color:#1d2420">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f1e9;padding:24px 12px">
+  return `<!doctype html><html><body style="margin:0;background:#f2eee7;font-family:Karla,Segoe UI,Arial,sans-serif;color:#1b1b1b">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2eee7;padding:24px 12px">
 <tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden">
-<tr><td style="background:#1f3d2b;padding:20px 28px;color:#f6f1e9;font-family:Georgia,serif;font-size:22px;font-weight:600">${esc(s.resort_name)}</td></tr>
+<tr><td style="background:#251911;padding:22px 28px;color:#e9e6d6;font-family:Georgia,serif;font-size:22px;font-weight:400;letter-spacing:4px;text-transform:uppercase">${esc(s.resort_name)}<div style="margin-top:4px;font-family:Arial,sans-serif;font-size:10px;letter-spacing:3px;color:#c19c7f">${esc(s.tagline || "")}</div></td></tr>
 <tr><td style="padding:28px">
-<h1 style="margin:0 0 12px;font-size:20px;line-height:1.3">${esc(heading)}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;line-height:1.3;color:#7b4821">${esc(heading)}</h1>
 ${body}
-${cta ? `<p style="margin:24px 0 0"><a href="${esc(cta.href)}" style="display:inline-block;background:#c2663f;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600">${esc(cta.label)}</a></p>` : ""}
+${cta ? `<p style="margin:24px 0 0"><a href="${esc(cta.href)}" style="display:inline-block;background:#7b4821;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:999px;font-weight:600">${esc(cta.label)}</a></p>` : ""}
 </td></tr>
-<tr><td style="padding:16px 28px;background:#fbf8f3;color:#6f7a73;font-size:12px;line-height:1.6">
+<tr><td style="padding:16px 28px;background:#fbfaf8;color:#5b5b5b;font-size:12px;line-height:1.6">
 ${esc(s.resort_name)}${s.address ? ` · ${esc(s.address)}` : ""}<br>${contact}
-${s.facebook_url ? `<br><a href="${esc(s.facebook_url)}" style="color:#6f7a73">Message us on Facebook</a>` : ""}
+${s.facebook_url ? `<br><a href="${esc(s.facebook_url)}" style="color:#7b4821">Message us on Facebook</a>` : ""}
 </td></tr>
 </table></td></tr></table></body></html>`;
 }
 
 function p(text: string) {
-  return `<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#4b5750">${text}</p>`;
+  return `<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#3d3d3d">${text}</p>`;
 }
 
 function details(b: BookingRow, s: SettingsRow, withMoney = true) {
@@ -168,11 +169,11 @@ function details(b: BookingRow, s: SettingsRow, withMoney = true) {
     rows.push(["Paid", peso(b.paid)]);
     rows.push(["Balance", `<strong>${peso(b.balance)}</strong>`]);
   }
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid #ece3d4;border-radius:12px;font-size:14px">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid #e9e7e2;border-radius:12px;font-size:14px">
 ${rows
   .map(
     ([k, v], i) =>
-      `<tr><td style="padding:10px 14px;color:#6f7a73;${i ? "border-top:1px solid #ece3d4;" : ""}width:40%">${k}</td><td style="padding:10px 14px;${i ? "border-top:1px solid #ece3d4;" : ""}">${v}</td></tr>`,
+      `<tr><td style="padding:10px 14px;color:#5b5b5b;${i ? "border-top:1px solid #e9e7e2;" : ""}width:40%">${k}</td><td style="padding:10px 14px;${i ? "border-top:1px solid #e9e7e2;" : ""}">${v}</td></tr>`,
   )
   .join("")}
 </table>`;
@@ -191,10 +192,10 @@ function payInfo(b: BookingRow, s: SettingsRow) {
       `<strong>${esc(s.bank_name || "Bank")}</strong>: ${esc(s.bank_account_number)}${s.bank_account_name ? ` (${esc(s.bank_account_name)})` : ""}`,
     );
   if (!lines.length || !methods.length) return "";
-  return `<div style="margin:16px 0;padding:14px 16px;background:#fbefe9;border-radius:12px;font-size:14px;line-height:1.7;color:#4b5750">
+  return `<div style="margin:16px 0;padding:14px 16px;background:#f8f1ea;border-radius:12px;font-size:14px;line-height:1.7;color:#3d3d3d">
 ${lines.join("<br>")}<br>${methods.join("<br>")}
-${s.payment_instructions ? `<br><span style="color:#6f7a73">${esc(s.payment_instructions)}</span>` : ""}
-<br><span style="color:#6f7a73">Reply to this email with your receipt if you haven't uploaded it yet.</span></div>`;
+${s.payment_instructions ? `<br><span style="color:#5b5b5b">${esc(s.payment_instructions)}</span>` : ""}
+<br><span style="color:#5b5b5b">Reply to this email with your receipt if you haven't uploaded it yet.</span></div>`;
 }
 
 export function buildEmail(type: EmailType, b: BookingRow, s: SettingsRow, siteUrl: string): Built | null {
@@ -253,7 +254,7 @@ export function buildEmail(type: EmailType, b: BookingRow, s: SettingsRow, siteU
             details(b, s) +
             (b.balance > 0 ? p(`The remaining balance of <strong>${peso(b.balance)}</strong> is payable on or before check-in.`) : "") +
             (s.house_rules
-              ? `<p style="margin:16px 0 6px;font-size:13px;font-weight:600">House rules</p><p style="margin:0;font-size:13px;line-height:1.6;color:#6f7a73;white-space:pre-line">${esc(s.house_rules)}</p>`
+              ? `<p style="margin:16px 0 6px;font-size:13px;font-weight:600">House rules</p><p style="margin:0;font-size:13px;line-height:1.6;color:#5b5b5b;white-space:pre-line">${esc(s.house_rules)}</p>`
               : ""),
           link,
         ),

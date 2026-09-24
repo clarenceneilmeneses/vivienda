@@ -26,6 +26,7 @@ import {
   PageHeader,
   Select,
   Spinner,
+  StatTile,
   Tabs,
 } from "../../components/ui";
 import { IncomeExpenseChart, SERIES, ShareBars, type MonthPoint } from "../../components/admin/Charts";
@@ -386,7 +387,7 @@ export default function Finance() {
                       <td className="hidden px-4 py-2.5 text-right text-ink-muted tabular-nums sm:table-cell">
                         {money(b.paid)} of {money(b.total)}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-medium text-clay-600 tabular-nums">{money(b.balance)}</td>
+                      <td className="px-4 py-2.5 text-right font-medium text-terra-600 tabular-nums">{money(b.balance)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -412,15 +413,7 @@ function Stat({
   note?: string;
   tone?: "good" | "bad";
 }) {
-  return (
-    <Card className="p-4">
-      <p className="truncate text-xs text-ink-muted">{label}</p>
-      <p className={`mt-1 text-xl font-semibold tabular-nums sm:text-2xl ${tone === "bad" ? "text-red-700" : ""}`}>
-        {value}
-      </p>
-      {note && <p className="mt-0.5 text-xs text-ink-muted">{note}</p>}
-    </Card>
-  );
+  return <StatTile label={label} value={value} sub={note} tone={tone === "bad" ? "warn" : "default"} />;
 }
 
 function ExpenseModal({ expense, onClose }: { expense: Expense | null; onClose: () => void }) {

@@ -1,11 +1,11 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { compactMoney, money } from "../../lib/format";
 
-// Validated with the dataviz palette checker (light surface): lightness, chroma,
-// colorblind separation and contrast all pass for this pair.
+// Malaya's single-hue approach: one brown, told apart by lightness, which
+// survives every kind of colour blindness. Income is the dark end.
 export const SERIES = {
-  income: "#1f6fb0",
-  expenses: "#c2663f",
+  income: "#7b4821",
+  expenses: "#c19c7f",
 } as const;
 
 export interface MonthPoint {
@@ -14,7 +14,7 @@ export interface MonthPoint {
   expenses: number;
 }
 
-const axis = { fontSize: 11, fill: "#6f7a73" };
+const axis = { fontSize: 11, fill: "#5b5b5b" };
 
 function TooltipBox({
   active,
@@ -29,7 +29,7 @@ function TooltipBox({
   const byKey = Object.fromEntries(payload.map((p) => [String(p.dataKey), Number(p.value ?? 0)]));
   const net = (byKey.income ?? 0) - (byKey.expenses ?? 0);
   return (
-    <div className="rounded-lg border border-sand-200 bg-white px-3 py-2 text-xs shadow-md">
+    <div className="rounded-xl border border-sand-200 bg-white px-3 py-2 text-xs shadow-level-3">
       <p className="mb-1 font-semibold text-ink">{label}</p>
       {payload.map((p) => (
         <p key={String(p.dataKey)} className="flex items-center justify-between gap-4 text-ink-soft">
@@ -66,8 +66,8 @@ export function IncomeExpenseChart({ data, showExpenses = true }: { data: MonthP
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} barGap={2} barCategoryGap="28%" margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-            <CartesianGrid vertical={false} stroke="#ece3d4" strokeDasharray="0" />
-            <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={{ stroke: "#dccfb9" }} />
+            <CartesianGrid vertical={false} stroke="#e9e7e2" strokeDasharray="0" />
+            <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={{ stroke: "#dbd9d3" }} />
             <YAxis
               tick={axis}
               tickLine={false}
@@ -75,7 +75,7 @@ export function IncomeExpenseChart({ data, showExpenses = true }: { data: MonthP
               width={52}
               tickFormatter={(v: number) => compactMoney(v)}
             />
-            <Tooltip content={<TooltipBox />} cursor={{ fill: "rgba(29,36,32,0.05)" }} />
+            <Tooltip content={<TooltipBox />} cursor={{ fill: "rgba(123,72,33,0.06)" }} />
             <Bar dataKey="income" fill={SERIES.income} radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
             {showExpenses && <Bar dataKey="expenses" fill={SERIES.expenses} radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />}
           </BarChart>

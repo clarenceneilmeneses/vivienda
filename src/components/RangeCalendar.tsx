@@ -187,12 +187,12 @@ function Month({
               aria-label={`${format(d, "EEEE, MMMM d")}${taken ? ", unavailable" : ""}`}
               className={cn(
                 "relative flex h-12 flex-col items-center justify-center text-sm transition-colors",
-                inRange && "bg-forest-50",
+                inRange && "bg-brand-50",
                 isStart && rangeEnd && "rounded-l-lg",
                 isEnd && "rounded-r-lg",
                 disabled ? "cursor-not-allowed text-ink-muted/50" : "text-ink hover:bg-sand-100",
                 taken && !asCheckout && !past && "line-through decoration-ink-muted/60",
-                (isStart || isEnd) && "rounded-lg bg-forest-700 text-sand-50 hover:bg-forest-700",
+                (isStart || isEnd) && "rounded-lg bg-brand-700 text-sand-50 hover:bg-brand-700",
               )}
             >
               <span className="leading-none">{format(d, "d")}</span>

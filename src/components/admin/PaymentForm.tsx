@@ -131,7 +131,7 @@ function Inner({ booking, onClose }: { booking: BookingSummary; onClose: () => v
               type="checkbox"
               checked={emailReceipt}
               onChange={(e) => setEmailReceipt(e.target.checked)}
-              className="size-4 accent-forest-700"
+              className="size-4 accent-brand-700"
             />
             Email a receipt to {booking.guest_email}
           </label>

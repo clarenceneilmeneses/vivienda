@@ -57,11 +57,11 @@ export default function MyBooking() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-12">
+    <div className="mx-auto max-w-xl px-4 py-14">
       {isNew && data && (
         <div className="mb-8 text-center">
-          <CheckCircle2 className="mx-auto size-12 text-forest-600" />
-          <h1 className="font-display mt-3 text-3xl font-semibold">Request received!</h1>
+          <CheckCircle2 className="mx-auto size-12 text-brand-700" />
+          <h1 className="site-display mt-3 text-3xl text-brand-700">Request received.</h1>
           <p className="mt-2 text-ink-muted">
             We've emailed a copy to <span className="font-medium text-ink">{email}</span>. Keep your booking reference
             handy.
@@ -69,13 +69,13 @@ export default function MyBooking() {
         </div>
       )}
 
-      {!isNew && <h1 className="font-display mb-6 text-3xl font-semibold">My booking</h1>}
+      {!isNew && <h1 className="site-display mb-6 text-3xl text-brand-700 sm:text-4xl">My booking.</h1>}
 
       {ref && email && isLoading ? (
         <Spinner />
       ) : data ? (
         <Card className="overflow-hidden">
-          <div className="flex items-center justify-between gap-3 bg-forest-700 px-5 py-4 text-sand-50">
+          <div className="flex items-center justify-between gap-3 bg-espresso px-5 py-4 text-cream">
             <div>
               <p className="text-xs tracking-wide uppercase opacity-75">Booking reference</p>
               <p className="font-mono text-xl font-semibold tracking-wider">{data.ref}</p>

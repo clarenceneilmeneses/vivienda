@@ -1,17 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "./supabase";
+import { SITE } from "./site";
 import type { BookingSummary, Settings, Unit } from "./types";
 
 export const DEFAULT_SETTINGS: Settings = {
   id: 1,
-  resort_name: "Vivienda",
-  tagline: "A quiet place to stay",
-  about: "",
-  email: "",
-  phone: "",
-  address: "",
-  facebook_url: "",
-  map_url: "",
+  resort_name: SITE.name,
+  tagline: SITE.tagline,
+  about: SITE.about,
+  email: SITE.email,
+  phone: SITE.phone,
+  address: SITE.address,
+  facebook_url: SITE.facebook,
+  map_url: SITE.mapUrl,
   check_in_time: "14:00",
   check_out_time: "12:00",
   downpayment_percent: 50,
@@ -35,7 +36,12 @@ export function useSettings() {
     queryFn: async (): Promise<Settings> => {
       const { data, error } = await supabase.from("settings").select("*").eq("id", 1).maybeSingle();
       if (error) throw error;
-      return { ...DEFAULT_SETTINGS, ...(data ?? {}) } as Settings;
+      // Blank text in the database falls back to the default, so the site
+      // shows Vivienda's contact details until the owner changes them.
+      const filled = Object.fromEntries(
+        Object.entries(data ?? {}).filter(([, v]) => v !== null && v !== ""),
+      );
+      return { ...DEFAULT_SETTINGS, ...filled } as Settings;
     },
     staleTime: 5 * 60_000,
   });

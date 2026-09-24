@@ -157,9 +157,10 @@ export default function Book() {
       .join("\n\n");
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="font-display text-3xl font-semibold sm:text-4xl">Book your stay</h1>
-      <p className="mt-1 text-ink-muted">Your booking is confirmed once we verify your downpayment.</p>
+    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-8">
+      <p className="text-[11px] font-semibold tracking-[0.28em] text-brand-700">RESERVE</p>
+      <h1 className="site-display mt-2 text-3xl text-brand-700 sm:text-5xl">Book your stay.</h1>
+      <p className="mt-2 text-ink-soft">Your booking is confirmed once we verify your downpayment.</p>
 
       <form onSubmit={submit} noValidate className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
@@ -174,7 +175,7 @@ export default function Book() {
                     className={cn(
                       "flex items-center gap-3 rounded-xl border p-3 text-left transition-colors",
                       unit?.id === u.id
-                        ? "border-forest-600 bg-forest-50 ring-1 ring-forest-600"
+                        ? "border-brand-600 bg-brand-50 ring-1 ring-brand-600"
                         : "border-sand-200 bg-white hover:border-sand-300",
                     )}
                   >
@@ -322,7 +323,7 @@ export default function Book() {
                 {settings?.payment_instructions && (
                   <p className="mt-4 text-sm text-ink-soft">{settings.payment_instructions}</p>
                 )}
-                <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-sand-300 bg-sand-50 px-4 py-4 hover:border-forest-500">
+                <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-sand-300 bg-sand-50 px-4 py-4 hover:border-brand-500">
                   <Upload className="size-5 shrink-0 text-ink-muted" />
                   <span className="min-w-0 flex-1 text-sm">
                     {receipt ? (
@@ -352,7 +353,7 @@ export default function Book() {
             )}
           </Section>
 
-          <div className="rounded-2xl border border-sand-200 bg-white p-5">
+          <div className="rounded-2xl border border-sand-200/80 bg-white p-5 shadow-level-2">
             <button
               type="button"
               onClick={() => setShowAgreement((v) => !v)}
@@ -360,7 +361,7 @@ export default function Book() {
               aria-expanded={showAgreement}
             >
               <span className="flex items-center gap-2 font-medium">
-                <FileText className="size-4 text-clay-500" /> Guest agreement
+                <FileText className="size-4 text-brand-700" /> Guest agreement
               </span>
               <span className="flex items-center gap-1 text-sm text-ink-muted">
                 {showAgreement ? "Hide" : "Read"}
@@ -377,7 +378,7 @@ export default function Book() {
                 type="checkbox"
                 checked={agreed}
                 onChange={(e) => setAgreed(e.target.checked)}
-                className="mt-0.5 size-4 accent-forest-700"
+                className="mt-0.5 size-4 accent-brand-700"
               />
               <span>I have read and agree to the guest agreement, house rules and cancellation policy.</span>
             </label>
@@ -386,8 +387,8 @@ export default function Book() {
         </div>
 
         <aside className="lg:sticky lg:top-24 lg:self-start">
-          <div className="rounded-2xl border border-sand-200 bg-white p-5">
-            <h2 className="font-display text-lg font-semibold">{unit?.name ?? "Your stay"}</h2>
+          <div className="rounded-2xl border border-sand-200/80 bg-white p-5 shadow-level-2">
+            <h2 className="text-xl font-medium text-ink">{unit?.name ?? "Your stay"}</h2>
             <dl className="mt-4 space-y-2 text-sm">
               <Row label="Check-in" value={range.checkIn ? prettyDate(range.checkIn, "EEE, MMM d") : "—"} />
               <Row label="Check-out" value={range.checkOut ? prettyDate(range.checkOut, "EEE, MMM d") : "—"} />
@@ -439,13 +440,13 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className={cn("rounded-2xl border bg-white p-5", error ? "border-red-300" : "border-sand-200")}>
-      <h2 className="mb-4 flex items-center gap-2 font-medium">
-        <span className="flex size-6 items-center justify-center rounded-full bg-forest-700 text-xs text-sand-50">
+    <section className={cn("rounded-2xl border bg-white p-5 shadow-level-2 sm:p-6", error ? "border-red-300" : "border-sand-200/80")}>
+      <h2 className="mb-4 flex items-center gap-2 font-sans text-base font-semibold">
+        <span className="flex size-6 items-center justify-center rounded-full bg-brand-700 text-xs text-sand-50">
           {step}
         </span>
         {title}
-        <span className="text-ink-muted">{icon}</span>
+        <span className="text-brand-700">{icon}</span>
       </h2>
       {children}
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
@@ -472,7 +473,7 @@ function PayOption({
       aria-pressed={active}
       className={cn(
         "rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
-        active ? "border-forest-600 bg-forest-50 text-forest-700 ring-1 ring-forest-600" : "border-sand-200 hover:border-sand-300",
+        active ? "border-brand-600 bg-brand-50 text-brand-700 ring-1 ring-brand-600" : "border-sand-200 hover:border-sand-300",
       )}
     >
       {label}
@@ -499,7 +500,7 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   return (
     <div className="flex justify-between gap-4">
       <dt className="text-ink-muted">{label}</dt>
-      <dd className={cn(strong && "font-semibold text-clay-600")}>{value}</dd>
+      <dd className={cn(strong && "font-semibold text-terra-600")}>{value}</dd>
     </div>
   );
 }

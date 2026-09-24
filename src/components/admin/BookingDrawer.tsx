@@ -180,7 +180,7 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-mono text-xs tracking-wider text-ink-muted">{b.ref}</p>
-            <h2 className="font-display mt-1 truncate text-2xl font-semibold">{b.guest_name}</h2>
+            <h2 className="font-display mt-1 truncate text-2xl font-medium">{b.guest_name}</h2>
             <p className="mt-1 text-sm text-ink-soft">
               {b.unit_name} · {stayRange(b.check_in, b.check_out)}
             </p>
@@ -267,7 +267,7 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
               rel="noreferrer"
               className="mt-3 flex items-center gap-2 rounded-lg border border-sand-200 px-3 py-2 text-sm hover:bg-sand-50"
             >
-              <FileImage className="size-4 text-clay-500" />
+              <FileImage className="size-4 text-brand-700" />
               Guest uploaded a receipt — view
             </a>
           )}
@@ -334,7 +334,7 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
                     <Badge
                       className={
                         e.status === "sent"
-                          ? "bg-forest-50 text-forest-700"
+                          ? "bg-brand-50 text-brand-700"
                           : e.status === "failed"
                             ? "bg-red-50 text-red-700"
                             : ""
@@ -432,7 +432,7 @@ function TransitionModal({
               type="checkbox"
               checked={email}
               onChange={(e) => setEmail(e.target.checked)}
-              className="size-4 accent-forest-700"
+              className="size-4 accent-brand-700"
             />
             Email {booking.guest_email}
           </label>
@@ -485,7 +485,7 @@ function Money({ label, value, note, emphasize }: { label: string; value: number
   return (
     <div>
       <dt className="text-xs text-ink-muted">{label}</dt>
-      <dd className={emphasize ? "font-semibold text-clay-600" : "font-semibold"}>{money(value)}</dd>
+      <dd className={emphasize ? "font-semibold text-terra-600" : "font-semibold"}>{money(value)}</dd>
       {note && <dd className="text-xs text-ink-muted">{note}</dd>}
     </div>
   );
