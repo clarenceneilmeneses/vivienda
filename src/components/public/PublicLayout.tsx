@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Suspense, useEffect, type ReactNode } from "react";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { Lock, Mail, MapPin, Phone } from "lucide-react";
 import { useSettings } from "../../lib/queries";
 import { SITE } from "../../lib/site";
 import { cn } from "../../lib/utils";
+import { Spinner } from "../ui";
+import { GuestUiProvider } from "./GuestContext";
+import { AccountMenu, BottomNav, MessagesFab, useHideOnScroll } from "./GuestNav";
 
 /** The logo mark beside the name, set like Malaya's wordmark: tracked display type, a thin line beneath. */
 export function Wordmark({ size = "header" }: { size?: "header" | "footer" }) {
@@ -32,29 +35,15 @@ export function Wordmark({ size = "header" }: { size?: "header" | "footer" }) {
   );
 }
 
-/** Slides the header away on the way down and back on the way up. */
-function useHideOnScroll() {
-  const [hidden, setHidden] = useState(false);
-  const last = useRef(0);
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const onScroll = () => {
-      const y = window.scrollY;
-      const delta = y - last.current;
-      if (Math.abs(delta) < 8) return;
-      setHidden(delta > 0 && y > 120);
-      last.current = y;
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  return hidden;
+export default function PublicLayout() {
+  return (
+    <GuestUiProvider>
+      <PublicShell />
+    </GuestUiProvider>
+  );
 }
 
-const navClass = ({ isActive }: { isActive: boolean }) =>
-  cn("transition-colors hover:text-brand-700", isActive && "font-semibold");
-
-export default function PublicLayout() {
+function PublicShell() {
   const { data: s } = useSettings();
   const hidden = useHideOnScroll();
   const { pathname, hash } = useLocation();
@@ -98,8 +87,14 @@ export default function PublicLayout() {
     );
   }
 
+  // The stay page pins its own Reserve bar to the bottom edge, so it has no tab bar.
+  const onStay = pathname.startsWith("/stay/");
+  const onMessages = pathname === "/messages";
+
   return (
     <div data-site="public" className="flex min-h-screen flex-col bg-white">
+      {!onStay && <BottomNav />}
+      {!onMessages && <MessagesFab raised={onStay} />}
       <header
         className={cn(
           "sticky top-0 z-30 bg-white/85 backdrop-blur transition-transform duration-300",
@@ -114,17 +109,20 @@ export default function PublicLayout() {
             <Link to="/#stay" className="transition-colors hover:text-brand-700">
               Stay
             </Link>
+            <Link to="/#gallery" className="transition-colors hover:text-brand-700">
+              Photos
+            </Link>
+            <Link to="/#reviews" className="transition-colors hover:text-brand-700">
+              Reviews
+            </Link>
             <Link to="/#contact" className="transition-colors hover:text-brand-700">
               Contact
             </Link>
-            <NavLink to="/my-booking" className={navClass}>
-              My Booking
-            </NavLink>
           </nav>
-          <div className="flex items-center gap-3">
-            <NavLink to="/my-booking" className={cn(navClass({ isActive: false }), "hidden text-sm whitespace-nowrap sm:inline md:hidden")}>
-              My Booking
-            </NavLink>
+          <div className="flex items-center gap-4">
+            <div className="hidden md:block">
+              <AccountMenu />
+            </div>
             <Link
               to="/#stay"
               className="inline-flex h-10 items-center rounded-full bg-brand-700 px-5 text-sm whitespace-nowrap font-medium text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90 sm:px-6"
@@ -136,11 +134,14 @@ export default function PublicLayout() {
       </header>
 
       <main className="flex-1">
-        <Outlet />
+        <Suspense fallback={<Spinner className="min-h-[50vh]" />}>
+          <Outlet />
+        </Suspense>
       </main>
 
+      {!onMessages && (
       <footer id="contact" className="scroll-mt-4 border-t border-sand-200/70 bg-white">
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-14 pb-14 sm:grid-cols-2 sm:px-8 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-14 pb-32 sm:grid-cols-2 md:pb-14 sm:px-8 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
           <div>
             <Wordmark size="footer" />
             <p className="mt-5 max-w-xs text-sm text-ink">A private pool resort in Alitagtag, Batangas.</p>
@@ -151,11 +152,14 @@ export default function PublicLayout() {
 
           <FooterColumn title="EXPLORE">
             <FooterLink to="/#stay">Stay</FooterLink>
-            <FooterLink to="/#stay">Book a stay</FooterLink>
+            <FooterLink to="/#gallery">Photos</FooterLink>
+            <FooterLink to="/#reviews">Reviews</FooterLink>
           </FooterColumn>
 
           <FooterColumn title="SUPPORT">
-            <FooterLink to="/my-booking">My Booking</FooterLink>
+            <FooterLink to="/trips">Trips</FooterLink>
+            <FooterLink to="/messages">Message us</FooterLink>
+            <FooterLink to="/my-booking">Find a booking</FooterLink>
             <FooterLink href={facebook} external>
               Facebook page
             </FooterLink>
@@ -199,6 +203,7 @@ export default function PublicLayout() {
           </FooterColumn>
         </div>
       </footer>
+      )}
     </div>
   );
 }

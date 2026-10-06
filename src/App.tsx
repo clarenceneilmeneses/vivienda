@@ -8,6 +8,13 @@ import Book from "./pages/public/Book";
 import MyBooking from "./pages/public/MyBooking";
 import Stay from "./pages/public/Stay";
 
+// Signed-in guest pages load when first opened.
+const Trips = lazy(() => import("./pages/public/Trips"));
+const TripDetail = lazy(() => import("./pages/public/TripDetail"));
+const Messages = lazy(() => import("./pages/public/Messages"));
+const Profile = lazy(() => import("./pages/public/Profile"));
+const ResetPassword = lazy(() => import("./pages/public/ResetPassword"));
+
 // The admin side carries charts and heavier screens; guests never download it.
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout"));
 const Login = lazy(() => import("./pages/admin/Login"));
@@ -18,6 +25,8 @@ const Guests = lazy(() => import("./pages/admin/Guests"));
 const Finance = lazy(() => import("./pages/admin/Finance"));
 const Units = lazy(() => import("./pages/admin/Units"));
 const SettingsPage = lazy(() => import("./pages/admin/Settings"));
+const Inbox = lazy(() => import("./pages/admin/Inbox"));
+const Reviews = lazy(() => import("./pages/admin/Reviews"));
 
 export default function App() {
   const { data: settings } = useSettings();
@@ -34,11 +43,18 @@ export default function App() {
           <Route path="stay/:slug" element={<Stay />} />
           <Route path="book" element={<Book />} />
           <Route path="my-booking" element={<MyBooking />} />
+          <Route path="trips" element={<Trips />} />
+          <Route path="trips/:ref" element={<TripDetail />} />
+          <Route path="messages" element={<Messages />} />
+          <Route path="profile" element={<Profile />} />
+          <Route path="reset-password" element={<ResetPassword />} />
         </Route>
         <Route path="admin/login" element={<Login />} />
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<Dashboard />} />
+          <Route path="inbox" element={<Inbox />} />
           <Route path="bookings" element={<Bookings />} />
+          <Route path="reviews" element={<Reviews />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="guests" element={<Guests />} />
           <Route path="finance" element={<Finance />} />

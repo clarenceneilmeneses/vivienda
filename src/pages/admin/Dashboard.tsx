@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
-import { AlertCircle, ArrowRight, BedDouble, LogIn, LogOut, TrendingUp, Users, Wallet } from "lucide-react";
+import { AlertCircle, ArrowRight, BedDouble, LogIn, LogOut, MessageSquare, TrendingUp, Users, Wallet } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useSettings, useUnits } from "../../lib/queries";
 import { isoDate, money, plural, stayRange } from "../../lib/format";
@@ -11,12 +11,14 @@ import { Card, CardHeader, EmptyState, Spinner, StatTile, StatusBadge } from "..
 import { IncomeExpenseChart, type MonthPoint } from "../../components/admin/Charts";
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
 import { useAllBookings } from "./Bookings";
+import { useInboxUnread } from "../../lib/admin-badges";
 
 export default function Dashboard() {
   const { data: settings } = useSettings();
   const { data: bookings, isLoading } = useAllBookings();
   const { data: units } = useUnits();
   const [openId, setOpenId] = useState<string | null>(null);
+  const { data: unreadMessages = 0 } = useInboxUnread();
 
   const now = new Date();
   const today = isoDate(now);
@@ -109,8 +111,13 @@ export default function Dashboard() {
         <h1 className="font-display text-2xl font-medium sm:text-[28px]">{greeting}</h1>
       </div>
 
-      {(stats.pending.length > 0 || stats.departures.length > 0 || stats.arrivingToday.length > 0) && (
+      {(unreadMessages > 0 || stats.pending.length > 0 || stats.departures.length > 0 || stats.arrivingToday.length > 0) && (
         <div className="mb-4 space-y-2">
+          {unreadMessages > 0 && (
+            <Alert to="/admin/inbox" icon={<MessageSquare className="size-4" />}>
+              {plural(unreadMessages, "guest")} waiting for a reply in the inbox
+            </Alert>
+          )}
           {stats.pending.length > 0 && (
             <Alert to="/admin/bookings?view=action">
               {plural(stats.pending.length, "booking request")} waiting for you to confirm

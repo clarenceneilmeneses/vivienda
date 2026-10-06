@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
@@ -24,6 +25,9 @@ import { cn } from "../../lib/utils";
 import type { PaymentMethod, Quote } from "../../lib/types";
 import { ErrorBox, Field, Input, Spinner, Textarea } from "../../components/ui";
 import { unitPhotos } from "../../components/public/StayBits";
+import { useGuestUi } from "../../components/public/GuestContext";
+import { useGuestProfile, useIsGuest } from "../../lib/guest";
+import { useAuth } from "../../lib/auth";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -59,6 +63,23 @@ export default function Book() {
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const { session } = useAuth();
+  const { isGuest } = useIsGuest();
+  const { data: profile } = useGuestProfile();
+  const { signIn } = useGuestUi();
+
+  // Signed in: the details come from the account, and the email is the account's,
+  // so the booking lands in Trips and its messages in the guest's inbox.
+  const accountEmail = isGuest ? (session?.user.email ?? "") : "";
+  useEffect(() => {
+    if (!isGuest) return;
+    setEmail(accountEmail);
+    if (profile) {
+      setName((n) => n || profile.full_name);
+      setPhone((p) => p || profile.phone || "");
+    }
+  }, [isGuest, accountEmail, profile]);
 
   const { data: quote, isFetching: quoting } = useQuery({
     queryKey: ["quote", unit?.id, range.checkIn, range.checkOut, guests],
@@ -136,7 +157,13 @@ export default function Book() {
       // Emails go out in the background; the booking is already safe.
       void sendBookingEmail("booking_received", created.id);
       void sendBookingEmail("new_booking_admin", created.id);
-      navigate(`/my-booking?ref=${created.ref}&email=${encodeURIComponent(email.trim())}&new=1`);
+      if (isGuest) {
+        await qc.invalidateQueries({ queryKey: ["guest"] });
+        toast.success("Request sent!", { description: "We'll confirm within 24 hours. Track it here or message us anytime." });
+        navigate(`/trips/${created.ref}`);
+      } else {
+        navigate(`/my-booking?ref=${created.ref}&email=${encodeURIComponent(email.trim())}&new=1`);
+      }
     } catch (err) {
       setSubmitError(errorMessage(err));
     } finally {
@@ -197,13 +224,39 @@ export default function Book() {
 
       <form onSubmit={submit} noValidate className="mt-10 space-y-10">
         <Step n={1} title="Your details">
+          {!session && (
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sand-200 bg-sand-50 px-4 py-3">
+              <p className="text-sm text-ink-soft">
+                <span className="font-semibold text-ink">Have an account?</span> Sign in to fill this in and track your
+                booking in Trips.
+              </p>
+              <button
+                type="button"
+                onClick={() => signIn()}
+                className="h-9 cursor-pointer rounded-full border border-sand-300 bg-white px-4 text-sm font-medium text-ink hover:bg-sand-100"
+              >
+                Sign in
+              </button>
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name" error={touched ? errors.name : null} className="sm:col-span-2">
               {(id) => <Input id={id} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />}
             </Field>
-            <Field label="Email" error={touched ? errors.email : null}>
+            <Field
+              label="Email"
+              error={touched ? errors.email : null}
+              hint={isGuest ? "From your account. Your booking will appear in Trips." : undefined}
+            >
               {(id) => (
-                <Input id={id} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+                <Input
+                  id={id}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  disabled={isGuest}
+                />
               )}
             </Field>
             <Field label="Mobile number" error={touched ? errors.phone : null} hint="Local or international.">

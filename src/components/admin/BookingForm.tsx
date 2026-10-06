@@ -19,13 +19,23 @@ import {
 import { RangeCalendar, type DateRange } from "../RangeCalendar";
 import { Button, ErrorBox, Field, Input, Modal, Select, Textarea } from "../ui";
 
+export interface BookingPreset {
+  unitId?: string;
+  checkIn?: string;
+  checkOut?: string;
+  guests?: number;
+  guestId?: string;
+  source?: BookingSource;
+  status?: BookingStatus;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
   /** Edit this booking; omit to create one. */
   booking?: BookingSummary | null;
-  /** Prefill for a new booking (e.g. clicked on the calendar). */
-  preset?: { unitId?: string; checkIn?: string };
+  /** Prefill for a new booking (e.g. clicked on the calendar, or a guest's inquiry in the inbox). */
+  preset?: BookingPreset;
   onSaved?: (id: string) => void;
 }
 
@@ -42,7 +52,7 @@ function BookingFormInner({
 }: {
   onClose: () => void;
   booking: BookingSummary | null;
-  preset?: { unitId?: string; checkIn?: string };
+  preset?: BookingPreset;
   onSaved?: (id: string) => void;
 }) {
   const qc = useQueryClient();
@@ -52,13 +62,13 @@ function BookingFormInner({
   const [unitId, setUnitId] = useState(booking?.unit_id ?? preset?.unitId ?? "");
   const [range, setRange] = useState<DateRange>({
     checkIn: booking?.check_in ?? preset?.checkIn ?? null,
-    checkOut: booking?.check_out ?? null,
+    checkOut: booking?.check_out ?? preset?.checkOut ?? null,
   });
-  const [guestsCount, setGuestsCount] = useState(booking?.guests_count ?? 2);
-  const [source, setSource] = useState<BookingSource>(booking?.source ?? "facebook");
-  const [status, setStatus] = useState<BookingStatus>(booking?.status ?? "confirmed");
-  const [guestMode, setGuestMode] = useState<"existing" | "new">(booking ? "existing" : "new");
-  const [guestId, setGuestId] = useState<string | null>(booking?.guest_id ?? null);
+  const [guestsCount, setGuestsCount] = useState(booking?.guests_count ?? preset?.guests ?? 2);
+  const [source, setSource] = useState<BookingSource>(booking?.source ?? preset?.source ?? "facebook");
+  const [status, setStatus] = useState<BookingStatus>(booking?.status ?? preset?.status ?? "confirmed");
+  const [guestMode, setGuestMode] = useState<"existing" | "new">(booking || preset?.guestId ? "existing" : "new");
+  const [guestId, setGuestId] = useState<string | null>(booking?.guest_id ?? preset?.guestId ?? null);
   const [guestSearch, setGuestSearch] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");

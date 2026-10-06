@@ -8,6 +8,7 @@ import {
   Grid3X3,
   MapPin,
   Sparkles,
+  Star,
   ThumbsUp,
   Users,
   Waves,
@@ -23,12 +24,14 @@ import { cn } from "../../lib/utils";
 import { EmptyState } from "../../components/ui";
 import { FrondBackdrop } from "../../components/public/decor";
 import { SearchPill, type StaySearch } from "../../components/public/SearchPill";
-import { ReviewCard, unitPhotos } from "../../components/public/StayBits";
+import { averageRating, GuestReviewCard, ReviewCard, unitPhotos } from "../../components/public/StayBits";
+import { usePublishedReviews, type PublishedReview } from "../../lib/guest";
 import type { Unit } from "../../lib/types";
 
 export default function Home() {
   const { data: s } = useSettings();
   const { data: units, isLoading } = useUnits();
+  const { data: guestReviews = [] } = usePublishedReviews();
   const { hash } = useLocation();
   const [params, setParams] = useSearchParams();
   // Vivienda is one resort, booked whole. It is the first active listing.
@@ -187,17 +190,25 @@ export default function Home() {
         </section>
       )}
 
-      {REVIEWS.length > 0 && (
-        <section className="overflow-hidden py-16 sm:py-20">
+      {REVIEWS.length + guestReviews.length > 0 && (
+        <section id="reviews" className="scroll-mt-20 overflow-hidden py-16 sm:py-20">
           <div className="px-4 sm:px-8">
           <div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="site-display text-2xl leading-tight text-brand-700 sm:text-3xl">
                 Loved by guests who stayed with us.
               </h2>
-              <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-ink">
-                <ThumbsUp className="size-4 text-brand-700" /> {RECOMMEND.percent}% recommend · {RECOMMEND.count} reviews
-                on Facebook
+              <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold text-ink">
+                {guestReviews.length > 0 && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Star className="size-4 fill-brand-700 text-brand-700" /> {averageRating(guestReviews)?.toFixed(2)} ·{" "}
+                    {guestReviews.length} guest review{guestReviews.length === 1 ? "" : "s"}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5">
+                  <ThumbsUp className="size-4 text-brand-700" /> {RECOMMEND.percent}% recommend · {RECOMMEND.count} reviews
+                  on Facebook
+                </span>
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-3">
@@ -218,7 +229,7 @@ export default function Home() {
             </div>
           </div>
           </div>
-          <ReviewMarquee />
+          <ReviewMarquee guestReviews={guestReviews} />
         </section>
       )}
     </>
@@ -230,17 +241,22 @@ export default function Home() {
  * is drawn twice so the loop has no seam; the copy is hidden from screen
  * readers. With reduced motion it is a plain scrollable row instead.
  */
-function ReviewMarquee() {
-  const card = (r: (typeof REVIEWS)[number], copy: boolean) => (
-    <div key={`${copy ? "b" : "a"}-${r.author}`} className="w-[300px] shrink-0 sm:w-[360px]" aria-hidden={copy || undefined}>
-      <ReviewCard {...r} />
+function ReviewMarquee({ guestReviews }: { guestReviews: PublishedReview[] }) {
+  // Reviews left on the site go first, then the Facebook recommendations.
+  const items = [
+    ...guestReviews.map((r) => ({ key: r.id, node: <GuestReviewCard review={r} /> })),
+    ...REVIEWS.map((r) => ({ key: r.author, node: <ReviewCard {...r} /> })),
+  ];
+  const card = (r: (typeof items)[number], copy: boolean) => (
+    <div key={`${copy ? "b" : "a"}-${r.key}`} className="w-[300px] shrink-0 sm:w-[360px]" aria-hidden={copy || undefined}>
+      {r.node}
     </div>
   );
   return (
     <div className="marquee group relative mt-10 [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]">
       <div className="marquee-track flex w-max gap-5 py-2 group-hover:[animation-play-state:paused] group-focus-within:[animation-play-state:paused]">
-        {REVIEWS.map((r) => card(r, false))}
-        {REVIEWS.map((r) => card(r, true))}
+        {items.map((r) => card(r, false))}
+        {items.map((r) => card(r, true))}
       </div>
     </div>
   );

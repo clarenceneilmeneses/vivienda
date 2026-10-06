@@ -9,6 +9,8 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
+  Star,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -22,13 +24,17 @@ import { supabase } from "../../lib/supabase";
 import { cn } from "../../lib/utils";
 import { SITE } from "../../lib/site";
 import { Button, Spinner } from "../ui";
+import { useInboxUnread, usePendingReviews } from "../../lib/admin-badges";
+import { useLiveTables } from "../../lib/guest";
+
+type Badges = Record<NonNullable<NavItem["badge"]>, number>;
 
 interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
   end?: boolean;
-  badge?: "pending";
+  badge?: "pending" | "inbox" | "reviews";
 }
 
 // Grouped the way Malaya OBS groups its sidebar.
@@ -37,9 +43,11 @@ const NAV: { label: string; items: NavItem[] }[] = [
   {
     label: "Front desk",
     items: [
+      { to: "/admin/inbox", label: "Inbox", icon: MessageSquare, badge: "inbox" },
       { to: "/admin/bookings", label: "Bookings", icon: ClipboardList, badge: "pending" },
       { to: "/admin/calendar", label: "Calendar", icon: CalendarDays },
       { to: "/admin/guests", label: "Guests", icon: Users },
+      { to: "/admin/reviews", label: "Reviews", icon: Star, badge: "reviews" },
     ],
   },
   { label: "Money", items: [{ to: "/admin/finance", label: "Finance", icon: Wallet }] },
@@ -86,7 +94,7 @@ function Wordmark({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function NavList({ collapsed = false, onNavigate, pending }: { collapsed?: boolean; onNavigate?: () => void; pending: number }) {
+function NavList({ collapsed = false, onNavigate, badges }: { collapsed?: boolean; onNavigate?: () => void; badges: Badges }) {
   return (
     <nav className={cn("no-scrollbar flex flex-1 flex-col overflow-y-auto pb-4", collapsed ? "px-2" : "px-3")}>
       {NAV.map((group, gi) => (
@@ -98,7 +106,7 @@ function NavList({ collapsed = false, onNavigate, pending }: { collapsed?: boole
           )}
           <div className="flex flex-col gap-1">
             {group.items.map(({ to, label, icon: Icon, end, badge }) => {
-              const count = badge === "pending" ? pending : 0;
+              const count = badge ? badges[badge] : 0;
               return (
                 <NavLink
                   key={to}
@@ -145,7 +153,12 @@ export default function AdminLayout() {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { data: pending = 0 } = usePendingCount(Boolean(session && isAdmin));
+  const signedIn = Boolean(session && isAdmin);
+  const { data: pending = 0 } = usePendingCount(signedIn);
+  const { data: inbox = 0 } = useInboxUnread(signedIn);
+  const { data: reviews = 0 } = usePendingReviews(signedIn);
+  useLiveTables("admin-badges", ["conversations"], [["inbox", "unread-count"]], signedIn);
+  const badges: Badges = { pending, inbox, reviews };
 
   useEffect(() => {
     try {
@@ -220,7 +233,7 @@ export default function AdminLayout() {
             {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
           </button>
         </div>
-        <NavList collapsed={collapsed} pending={pending} />
+        <NavList collapsed={collapsed} badges={badges} />
         <SidebarFooter collapsed={collapsed} onSignOut={signOut} />
       </aside>
 
@@ -239,7 +252,7 @@ export default function AdminLayout() {
                 <X className="size-5" />
               </button>
             </div>
-            <NavList onNavigate={() => setOpen(false)} pending={pending} />
+            <NavList onNavigate={() => setOpen(false)} badges={badges} />
             <SidebarFooter onSignOut={signOut} />
           </aside>
         </div>

@@ -13,6 +13,9 @@ import {
   Wifi,
   Lock,
   MapPin,
+  MessageCircle,
+  ShieldCheck,
+  Star,
   Users,
   Waves,
   X,
@@ -20,13 +23,16 @@ import {
 import { supabase } from "../../lib/supabase";
 import { nightlyRate, useRateOverrides, useSettings, useUnavailableNights, useUnits } from "../../lib/queries";
 import { compactMoney, isoDate, money, plural, prettyDate, prettyTime } from "../../lib/format";
-import { DEFAULT_AMENITIES, LOCATION_LABEL, REVIEWS, SITE, SLEEPING } from "../../lib/site";
+import { DEFAULT_AMENITIES, LOCATION_LABEL, RECOMMEND, REVIEWS, SITE, SLEEPING } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import type { Quote } from "../../lib/types";
 import { RangeCalendar, type DateRange } from "../../components/RangeCalendar";
 import { Spinner } from "../../components/ui";
 import { Stepper } from "../../components/public/SearchPill";
-import { ReviewCard, unitPhotos } from "../../components/public/StayBits";
+import { averageRating, GuestReviewCard, ReviewCard, unitPhotos } from "../../components/public/StayBits";
+import { useGuestUi } from "../../components/public/GuestContext";
+import { usePublishedReviews } from "../../lib/guest";
+import { useAuth } from "../../lib/auth";
 
 export default function Stay() {
   const { slug } = useParams();
@@ -40,6 +46,9 @@ export default function Stay() {
   const horizon = isoDate(addDays(new Date(), 400));
   const { data: unavailable } = useUnavailableNights(unit?.id, today, horizon);
   const { data: overrides } = useRateOverrides(unit?.id);
+  const { data: guestReviews = [] } = usePublishedReviews();
+  const { session, isAdmin } = useAuth();
+  const { signIn, openChat } = useGuestUi();
 
   const range: DateRange = { checkIn: params.get("in"), checkOut: params.get("out") };
   const guests = Math.min(Number(params.get("guests")) || 2, unit?.max_guests ?? 99);
@@ -95,6 +104,14 @@ export default function Stay() {
   const about = unit.description || settings?.about || SITE.about;
   const ready = Boolean(range.checkIn && range.checkOut);
 
+  // Message host carries the dates on the page, so the question arrives with them.
+  function messageHost() {
+    const inquiry = { checkIn: range.checkIn, checkOut: range.checkOut, guests };
+    if (!session) signIn({ then: () => openChat(inquiry) });
+    else if (!isAdmin) openChat(inquiry);
+  }
+  const rating = averageRating(guestReviews);
+
   function reserve() {
     if (!ready) {
       setDatesOpen(true);
@@ -148,6 +165,15 @@ export default function Stay() {
           <h1 className="font-display text-3xl font-semibold text-brand-700 sm:text-4xl">{unit.name}</h1>
           <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-soft">
             <MapPin className="size-4 text-brand-700" /> {LOCATION_LABEL}
+            {rating != null && (
+              <>
+                <Sep />
+                <a href="#reviews" className="inline-flex items-center gap-1 font-medium text-ink underline underline-offset-4">
+                  <Star className="size-3.5 fill-ink" /> {rating.toFixed(2)} · {guestReviews.length} review
+                  {guestReviews.length === 1 ? "" : "s"}
+                </a>
+              </>
+            )}
             <Sep /> Sleeps {unit.max_guests}
             <Sep /> {money(unit.base_rate, true)} weekdays
             {unit.weekend_rate != null && unit.weekend_rate !== unit.base_rate && (
@@ -221,15 +247,63 @@ export default function Stay() {
             <p className="mt-3 text-xs text-ink-muted">Crossed-out nights are taken. Prices shown are per night.</p>
           </Block>
 
-          {REVIEWS.length > 0 && (
-            <Block title={`Reviews · ${REVIEWS.length} recommend`}>
+          {REVIEWS.length + guestReviews.length > 0 && (
+            <Block
+              title="Reviews"
+              aside={
+                <span className="text-sm font-medium text-ink-soft">
+                  {rating != null ? `★ ${rating.toFixed(2)} · ${guestReviews.length} on site · ` : ""}
+                  {REVIEWS.length} recommend on Facebook
+                </span>
+              }
+            >
               <div className="grid gap-4 sm:grid-cols-2">
-                {REVIEWS.slice(0, 6).map((r) => (
+                {guestReviews.slice(0, 4).map((r) => (
+                  <GuestReviewCard key={r.id} review={r} />
+                ))}
+                {REVIEWS.slice(0, Math.max(2, 6 - guestReviews.length)).map((r) => (
                   <ReviewCard key={r.author} {...r} />
                 ))}
               </div>
             </Block>
           )}
+
+          <Block title="Your host">
+            <div className="flex flex-col gap-6 rounded-3xl bg-sand-100 p-6 sm:flex-row sm:items-center sm:p-8">
+              <div className="flex items-center gap-4 sm:w-64 sm:shrink-0 sm:flex-col sm:items-start">
+                <span className="relative">
+                  <img src="/images/logo-192.png" alt="" className="size-20 rounded-full shadow-level-2" />
+                  <ShieldCheck className="absolute -right-1 -bottom-1 size-7 rounded-full bg-brand-700 p-1.5 text-white" />
+                </span>
+                <div>
+                  <p className="font-display text-xl font-semibold text-ink">{settings?.resort_name || SITE.name}</p>
+                  <p className="text-sm text-ink-muted">Owner-managed · {LOCATION_LABEL}</p>
+                </div>
+              </div>
+              <div className="min-w-0 flex-1 text-sm text-ink-soft">
+                <ul className="space-y-1.5">
+                  <li>
+                    <span className="font-semibold text-ink">{REVIEWS.length + guestReviews.length}</span> reviews ·{" "}
+                    <span className="font-semibold text-ink">{RECOMMEND.percent}%</span> recommend
+                  </li>
+                  <li>Usually replies within the day</li>
+                  <li>Exact directions are shared once your booking is confirmed</li>
+                </ul>
+                {!isAdmin && (
+                  <button
+                    type="button"
+                    onClick={messageHost}
+                    className="mt-5 inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl bg-ink px-5 text-sm font-semibold text-white hover:bg-ink/90"
+                  >
+                    <MessageCircle className="size-4" /> Message host
+                  </button>
+                )}
+                <p className="mt-3 text-xs text-ink-muted">
+                  To protect your payment, always pay and talk with us through this website or our official page.
+                </p>
+              </div>
+            </div>
+          </Block>
 
           <Block title="Location">
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
@@ -362,6 +436,15 @@ export default function Stay() {
             <p className="mt-5 flex items-center justify-center gap-2 border-t border-sand-200 pt-4 text-sm text-ink-soft">
               <Lock className="size-4 text-brand-700" /> Clear pricing. Secure booking.
             </p>
+            {!isAdmin && (
+              <button
+                type="button"
+                onClick={messageHost}
+                className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 text-sm font-medium text-ink underline underline-offset-4 hover:text-brand-700"
+              >
+                <MessageCircle className="size-4" /> Have a question? Message host
+              </button>
+            )}
           </div>
         </aside>
       </div>

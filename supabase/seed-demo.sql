@@ -11,7 +11,7 @@
 -- rows first.
 -- ─────────────────────────────────────────────────────────────
 
--- 0. Clear a previous demo run.
+-- 0. Clear a previous demo run. (Their conversations, messages and reviews go with the guests.)
 delete from public.payments where booking_id in (
   select b.id from public.bookings b join public.guests g on g.id = b.guest_id where g.email like '%@example.com');
 delete from public.bookings where guest_id in (select id from public.guests where email like '%@example.com');
@@ -132,6 +132,50 @@ Please leave the place as you found it; a cleaning fee applies for excessive mes
   bank_account_name = coalesce(nullif(bank_account_name, ''), 'Vivienda Sample'),
   bank_account_number = coalesce(nullif(bank_account_number, ''), '0000 0000 0000')
 where id = 1;
+
+-- 7. Inbox: a few conversations, so Messages has something in it.
+-- Demo guests have no website accounts, so only you see these.
+do $$
+declare gid uuid; cid uuid; bid uuid;
+begin
+  if to_regclass('public.conversations') is null then return; end if;
+
+  -- An inquiry about dates, still waiting for a reply.
+  select id into gid from public.guests where email = 'nico.fernandez@example.com';
+  insert into public.conversations (guest_id, inquiry_check_in, inquiry_check_out, inquiry_guests)
+  values (gid, current_date + 45, current_date + 46, 18) returning id into cid;
+  insert into public.messages (conversation_id, author, author_name, body, sent_at) values
+    (cid, 'guest', 'Nico Fernandez', 'Hi! Is the resort available on those dates? We''re around 18 for a barkada reunion.', now() - interval '3 hours'),
+    (cid, 'guest', 'Nico Fernandez', 'Also, can we bring our own sound system?', now() - interval '2 hours 50 minutes');
+
+  -- A guest arriving soon, a back-and-forth that is answered.
+  select id into gid from public.guests where email = 'james.tan@example.com';
+  select id into bid from public.bookings where guest_id = gid and status = 'confirmed' order by check_in limit 1;
+  insert into public.conversations (guest_id) values (gid) returning id into cid;
+  insert into public.messages (conversation_id, author, author_name, kind, body, booking_id, sent_at) values
+    (cid, 'guest', 'James Tan', 'booking', 'Requested to book for 9 guests.', bid, now() - interval '9 days'),
+    (cid, 'host', 'Vivienda', 'message', 'Hi James! Your booking is confirmed. See you soon!', null, now() - interval '8 days'),
+    (cid, 'guest', 'James Tan', 'message', 'Thank you! We land in Manila at 5 PM, so we''ll arrive around 9 PM. Is that okay?', null, now() - interval '1 day'),
+    (cid, 'host', 'Vivienda', 'message', 'No problem at all. Our caretaker will wait for you at the gate. Safe travels!', null, now() - interval '20 hours');
+  update public.conversations set guest_seen_at = now() - interval '19 hours' where id = cid;
+
+  -- A guest in house reporting a problem.
+  select id into gid from public.guests where email = 'katrina.v@example.com';
+  insert into public.conversations (guest_id, starred) values (gid, true) returning id into cid;
+  insert into public.messages (conversation_id, author, author_name, kind, body, sent_at) values
+    (cid, 'guest', 'Katrina Villanueva', 'problem', 'The aircon in the A-House loft isn''t cooling. Can someone take a look?', now() - interval '25 minutes');
+
+  -- Reviews from past stays: two published, one waiting for you.
+  insert into public.reviews (booking_id, guest_id, rating, body, status, host_reply, host_replied_at, created_at)
+  select b.id, b.guest_id, x.rating, x.body, x.status, x.reply, case when x.reply <> '' then now() end, now() - (x.ago || ' days')::interval
+  from (values
+    ('angela.mercado@example.com', 5, 'Perfect for my daughter''s birthday! The pool was clean, the place was spacious and the caretaker was so helpful the whole time.', 'published', 'Thank you, Angela! Happy birthday again to your daughter.', 70),
+    ('trisha.lim@example.com',     5, 'Second time here and it''s still our favorite private resort near Lipa. Super relaxing and very private.', 'published', '', 10),
+    ('bea.santos@example.com',     4, 'Nice place and very accommodating owner. The road going in is a bit narrow at night, but worth it.', 'pending', '', 2)
+  ) as x(email, rating, body, status, reply, ago)
+  join public.guests g on g.email = x.email
+  join lateral (select * from public.bookings where guest_id = g.id and status = 'checked_out' order by check_in desc limit 1) b on true;
+end $$;
 
 -- ─────────────────────────────────────────────────────────────
 -- TO REMOVE THE DEMO DATA LATER, run section 0 above on its own.

@@ -93,7 +93,7 @@ export async function loadSettings(db: SupabaseClient) {
 
 // ───────────────────────── formatting ─────────────────────────
 
-function esc(s: unknown) {
+export function esc(s: unknown) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
@@ -133,7 +133,7 @@ interface Built {
   html: string;
 }
 
-function layout(s: SettingsRow, heading: string, body: string, cta?: { href: string; label: string }) {
+export function layout(s: SettingsRow, heading: string, body: string, cta?: { href: string; label: string }) {
   const contact = [s.phone, s.email].filter(Boolean).map(esc).join(" · ");
   return `<!doctype html><html><body style="margin:0;background:#f2eee7;font-family:Karla,Segoe UI,Arial,sans-serif;color:#1b1b1b">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2eee7;padding:24px 12px">
@@ -152,7 +152,7 @@ ${s.facebook_url ? `<br><a href="${esc(s.facebook_url)}" style="color:#7b4821">M
 </table></td></tr></table></body></html>`;
 }
 
-function p(text: string) {
+export function p(text: string) {
   return `<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#3d3d3d">${text}</p>`;
 }
 

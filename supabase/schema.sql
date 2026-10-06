@@ -84,6 +84,9 @@ create table if not exists public.guests (
   created_at timestamptz not null default now()
 );
 create unique index if not exists guests_email_key on public.guests (lower(email)) where email is not null and email <> '';
+-- A guest with a website account. One account, one guest record.
+alter table public.guests add column if not exists user_id uuid references auth.users(id) on delete set null;
+create unique index if not exists guests_user_key on public.guests (user_id) where user_id is not null;
 
 create or replace function public.gen_booking_ref() returns text
 language plpgsql volatile as $$
@@ -355,6 +358,19 @@ begin
     raise exception 'Sorry, some of those nights were just taken. Please pick other dates.';
   end;
 
+  -- Booked while signed in with the same email: the booking joins the account,
+  -- and the request shows up in the guest's conversation, as on Airbnb.
+  if auth.uid() is not null and lower(coalesce(auth.jwt() ->> 'email', '')) = lower(trim(p_email)) then
+    update public.guests set user_id = auth.uid() where guests.id = gid and user_id is null
+      and not exists (select 1 from public.guests g2 where g2.user_id = auth.uid());
+    if exists (select 1 from public.guests g3 where g3.id = gid and g3.user_id = auth.uid()) then
+      perform public.post_booking_note(gid, new_id,
+        format('Requested to book %s – %s for %s guest%s.',
+          to_char(p_check_in, 'Mon DD'), to_char(p_check_out, 'Mon DD, YYYY'), p_guests,
+          case when p_guests = 1 then '' else 's' end));
+    end if;
+  end if;
+
   return query select new_id, new_ref, q.total;
 end $$;
 
@@ -407,6 +423,362 @@ create policy unit_photos_write on storage.objects for insert to authenticated
 drop policy if exists unit_photos_delete on storage.objects;
 create policy unit_photos_delete on storage.objects for delete to authenticated
   using (bucket_id = 'unit-photos' and public.is_admin());
+
+-- ─────────────────────────────────────────────────────────────
+-- Guest accounts, messages and reviews (the Airbnb-style guest side)
+--
+-- One conversation per guest, for life: inquiry, booking, stay and after.
+-- Guests never read tables directly; they get their own rows through the
+-- functions below, so admin notes and other guests' data never leave.
+-- ─────────────────────────────────────────────────────────────
+
+create table if not exists public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  guest_id uuid not null unique references public.guests(id) on delete cascade,
+  starred boolean not null default false,
+  archived_at timestamptz,
+  admin_unread boolean not null default false,
+  admin_seen_at timestamptz,
+  guest_seen_at timestamptz,
+  last_message_at timestamptz not null default now(),
+  last_message_preview text not null default '',
+  last_author text,
+  -- What the guest had picked on the site when they pressed "Message host".
+  inquiry_check_in date,
+  inquiry_check_out date,
+  inquiry_guests int,
+  -- When each side was last emailed about new messages, so a burst is one email.
+  host_emailed_at timestamptz,
+  guest_emailed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.conversations add column if not exists host_emailed_at timestamptz;
+alter table public.conversations add column if not exists guest_emailed_at timestamptz;
+create index if not exists conversations_last_idx on public.conversations (last_message_at desc);
+
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  author text not null check (author in ('guest','host')),
+  author_name text not null default '',
+  -- message: typed by a person. problem: a guest reporting an issue during the stay.
+  -- booking: a note the system posts when a booking is requested, cancelled or paid.
+  kind text not null default 'message' check (kind in ('message','problem','booking')),
+  body text not null default '',
+  booking_id uuid references public.bookings(id) on delete set null,
+  edited_at timestamptz,
+  unsent_at timestamptz,
+  sent_at timestamptz not null default now()
+);
+create index if not exists messages_conversation_idx on public.messages (conversation_id, sent_at);
+
+create table if not exists public.quick_replies (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  body text not null,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.reviews (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid not null unique references public.bookings(id) on delete cascade,
+  guest_id uuid not null references public.guests(id) on delete cascade,
+  rating int not null check (rating between 1 and 5),
+  body text not null,
+  status text not null default 'pending' check (status in ('pending','published','hidden')),
+  host_reply text not null default '',
+  host_replied_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+drop trigger if exists reviews_touch on public.reviews;
+create trigger reviews_touch before update on public.reviews
+  for each row execute function public.touch_updated_at();
+
+-- A few saved answers to start with. Edit them in the admin under Inbox → Quick replies.
+insert into public.quick_replies (title, body, sort_order)
+select * from (values
+  ('Thanks for asking', 'Hi {guest}! Thanks for messaging {resort}. Let me check that for you, I''ll get back to you shortly.', 0),
+  ('Payment details', 'Hi {guest}! To secure your dates, please send the downpayment via GCash or bank transfer (details are on your booking page under Trips) and upload the receipt there. We confirm within 24 hours.', 1),
+  ('Check-in and out', 'Check-in is from 2:00 PM and check-out is until 12:00 noon. Early check-in or late check-out can be arranged if the dates around yours are free.', 2),
+  ('Directions', 'We''re at Muzon 1st, Alitagtag, Batangas. Search "Vivienda Resort Alitagtag" on Google Maps or Waze. Call us when you reach the town proper and we''ll guide you in.', 3),
+  ('Booking confirmed', 'Hi {guest}! Your booking is confirmed. We''re excited to host you at {resort}. Message us here anytime if you need anything before your stay.', 4),
+  ('Thanks for staying', 'Thank you for staying with us, {guest}! We hope you had a relaxing time. If you have a minute, we''d love a review from your Trips page. Hope to see you again!', 5)
+) as v(title, body, sort_order)
+where not exists (select 1 from public.quick_replies);
+
+-- Keeps the inbox list current: latest message, who wrote it, unread for the host.
+create or replace function public.messages_after_insert() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  update public.conversations set
+    last_message_at = new.sent_at,
+    last_message_preview = left(new.body, 160),
+    last_author = new.author,
+    admin_unread = (new.author = 'guest'),
+    admin_seen_at = case when new.author = 'host' then now() else admin_seen_at end,
+    archived_at = case when new.author = 'guest' then null else archived_at end
+  where id = new.conversation_id;
+  return new;
+end $$;
+drop trigger if exists messages_after_insert on public.messages;
+create trigger messages_after_insert after insert on public.messages
+  for each row execute function public.messages_after_insert();
+
+alter table public.conversations enable row level security;
+alter table public.messages enable row level security;
+alter table public.quick_replies enable row level security;
+alter table public.reviews enable row level security;
+
+create or replace function public.current_guest_id() returns uuid
+language sql stable security definer set search_path = public as $$
+  select id from public.guests where user_id = auth.uid() limit 1;
+$$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['conversations','messages','quick_replies','reviews'] loop
+    execute format('drop policy if exists %I on public.%I', t || '_admin', t);
+    execute format('create policy %I on public.%I for all using (public.is_admin()) with check (public.is_admin())', t || '_admin', t);
+  end loop;
+end $$;
+
+-- Guests read their own thread. They write only through guest_send_message.
+drop policy if exists conversations_guest on public.conversations;
+create policy conversations_guest on public.conversations for select to authenticated
+  using (guest_id = public.current_guest_id());
+drop policy if exists messages_guest on public.messages;
+create policy messages_guest on public.messages for select to authenticated
+  using (exists (select 1 from public.conversations c
+                 where c.id = conversation_id and c.guest_id = public.current_guest_id()));
+
+-- Live updates for the chat. Realtime respects the policies above.
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    begin
+      alter publication supabase_realtime add table public.messages;
+    exception when duplicate_object then null;
+    end;
+    begin
+      alter publication supabase_realtime add table public.conversations;
+    exception when duplicate_object then null;
+    end;
+  end if;
+end $$;
+
+-- Signs a guest's account up to their guest record, or updates it. An account
+-- picks up earlier bookings made with the same email only once that email is
+-- confirmed, so nobody can sign up as someone else and see their stays.
+create or replace function public.guest_save_profile(p_full_name text, p_phone text)
+returns uuid
+language plpgsql volatile security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  em text;
+  confirmed timestamptz;
+  gid uuid;
+begin
+  if uid is null then raise exception 'Please sign in first.'; end if;
+  if public.is_admin() then raise exception 'Admin accounts are not guest accounts.'; end if;
+  select lower(u.email), u.email_confirmed_at into em, confirmed from auth.users u where u.id = uid;
+
+  select id into gid from public.guests where user_id = uid;
+  if gid is null and confirmed is not null then
+    update public.guests set user_id = uid
+    where lower(email) = em and user_id is null
+    returning id into gid;
+  end if;
+
+  if gid is null then
+    if exists (select 1 from public.guests where lower(email) = em) then
+      raise exception 'Please confirm your email first. We sent you a link when you signed up.';
+    end if;
+    insert into public.guests (full_name, email, phone, user_id)
+    values (coalesce(nullif(trim(p_full_name), ''), split_part(em, '@', 1)), em, nullif(trim(p_phone), ''), uid)
+    returning id into gid;
+  else
+    update public.guests set
+      full_name = coalesce(nullif(trim(p_full_name), ''), full_name),
+      phone = coalesce(nullif(trim(p_phone), ''), phone)
+    where id = gid;
+  end if;
+  return gid;
+end $$;
+
+create or replace function public.my_profile()
+returns table (id uuid, full_name text, email text, phone text, created_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select g.id, g.full_name, g.email, g.phone, g.created_at from public.guests g where g.user_id = auth.uid();
+$$;
+
+-- The guest's trips. No admin notes, no other guests.
+create or replace function public.my_bookings()
+returns table (id uuid, ref text, status text, unit_name text, unit_slug text, unit_photo text,
+               check_in date, check_out date, nights int, guests_count int,
+               total numeric, paid numeric, balance numeric, payment_method text, has_receipt boolean,
+               special_requests text, created_at timestamptz,
+               review_rating int, review_body text, review_status text, review_reply text)
+language sql stable security definer set search_path = public as $$
+  select s.id, s.ref, s.status, s.unit_name, u.slug, u.photos[1],
+         s.check_in, s.check_out, s.nights, s.guests_count,
+         s.total, s.paid, s.balance, s.payment_method, s.receipt_path is not null,
+         s.special_requests, s.created_at,
+         r.rating, r.body, r.status, r.host_reply
+  from public.booking_summary s
+  join public.units u on u.id = s.unit_id
+  left join public.reviews r on r.booking_id = s.id
+  where s.guest_id = public.current_guest_id()
+  order by s.check_in desc;
+$$;
+
+create or replace function public.my_payments(p_booking uuid)
+returns table (kind text, amount numeric, method text, paid_on date)
+language sql stable security definer set search_path = public as $$
+  select p.kind, p.amount, p.method, p.paid_on
+  from public.payments p join public.bookings b on b.id = p.booking_id
+  where p.booking_id = p_booking and b.guest_id = public.current_guest_id()
+  order by p.paid_on;
+$$;
+
+-- Posts a system note into a guest's thread, creating the thread if needed.
+create or replace function public.post_booking_note(p_guest uuid, p_booking uuid, p_body text)
+returns void
+language plpgsql volatile security definer set search_path = public as $$
+declare cid uuid; gname text;
+begin
+  insert into public.conversations (guest_id) values (p_guest)
+  on conflict (guest_id) do nothing;
+  select c.id into cid from public.conversations c where c.guest_id = p_guest;
+  select full_name into gname from public.guests where id = p_guest;
+  insert into public.messages (conversation_id, author, author_name, kind, body, booking_id)
+  values (cid, 'guest', coalesce(gname, ''), 'booking', p_body, p_booking);
+end $$;
+revoke all on function public.post_booking_note(uuid, uuid, text) from public, anon, authenticated;
+
+create or replace function public.guest_send_message(
+  p_body text,
+  p_kind text default 'message',
+  p_check_in date default null,
+  p_check_out date default null,
+  p_guests int default null
+) returns uuid
+language plpgsql volatile security definer set search_path = public as $$
+declare
+  gid uuid := public.current_guest_id();
+  gname text;
+  cid uuid;
+  mid uuid;
+  v_body text := trim(coalesce(p_body, ''));
+begin
+  if gid is null then raise exception 'Finish setting up your account to send messages.'; end if;
+  if v_body = '' then raise exception 'Write a message first.'; end if;
+  if length(v_body) > 4000 then raise exception 'That message is too long. Please split it up.'; end if;
+  if p_kind not in ('message','problem') then raise exception 'Unknown message type.'; end if;
+  if p_kind = 'problem' and not exists (
+    select 1 from public.bookings where guest_id = gid and status = 'checked_in') then
+    raise exception 'You can report a problem while you are staying with us.';
+  end if;
+
+  insert into public.conversations (guest_id) values (gid) on conflict (guest_id) do nothing;
+  select id into cid from public.conversations where guest_id = gid;
+
+  if (select count(*) from public.messages
+      where conversation_id = cid and author = 'guest' and sent_at > now() - interval '10 minutes') >= 30 then
+    raise exception 'You are sending messages too fast. Please wait a few minutes.';
+  end if;
+
+  if p_check_in is not null and p_check_out is not null and p_check_out > p_check_in then
+    update public.conversations set inquiry_check_in = p_check_in, inquiry_check_out = p_check_out,
+      inquiry_guests = p_guests where id = cid;
+  end if;
+
+  select full_name into gname from public.guests where id = gid;
+  insert into public.messages (conversation_id, author, author_name, kind, body)
+  values (cid, 'guest', gname, p_kind, v_body)
+  returning id into mid;
+  update public.conversations set guest_seen_at = now() where id = cid;
+  return mid;
+end $$;
+
+create or replace function public.guest_mark_seen() returns void
+language sql volatile security definer set search_path = public as $$
+  update public.conversations set guest_seen_at = now() where guest_id = public.current_guest_id();
+$$;
+
+-- A guest may withdraw a request we have not confirmed yet.
+create or replace function public.guest_cancel_booking(p_booking uuid) returns void
+language plpgsql volatile security definer set search_path = public as $$
+declare b public.bookings;
+begin
+  select * into b from public.bookings where id = p_booking and guest_id = public.current_guest_id();
+  if not found then raise exception 'Booking not found.'; end if;
+  if b.status <> 'pending' then
+    raise exception 'This booking is already confirmed. Message us to change or cancel it.';
+  end if;
+  update public.bookings set status = 'cancelled' where id = b.id;
+  perform public.post_booking_note(b.guest_id, b.id, format('Withdrew booking request %s.', b.ref));
+end $$;
+
+-- Proof of payment sent after booking ("Pay later", or the balance).
+create or replace function public.guest_attach_receipt(p_booking uuid, p_path text, p_method text) returns void
+language plpgsql volatile security definer set search_path = public as $$
+declare b public.bookings;
+begin
+  select * into b from public.bookings where id = p_booking and guest_id = public.current_guest_id();
+  if not found then raise exception 'Booking not found.'; end if;
+  if b.status not in ('pending','confirmed','checked_in') then raise exception 'This booking is closed.'; end if;
+  if coalesce(p_path, '') = '' then raise exception 'Upload the receipt first.'; end if;
+  if p_method is not null and p_method not in ('gcash','bank_transfer','cash','card','other') then
+    raise exception 'Unknown payment method.';
+  end if;
+  update public.bookings set receipt_path = p_path, payment_method = coalesce(p_method, payment_method) where id = b.id;
+  perform public.post_booking_note(b.guest_id, b.id, format('Sent a payment receipt for %s.', b.ref));
+end $$;
+
+-- A review after the stay. It shows on the site once the host publishes it.
+create or replace function public.guest_save_review(p_booking uuid, p_rating int, p_body text) returns void
+language plpgsql volatile security definer set search_path = public as $$
+declare b public.bookings;
+begin
+  select * into b from public.bookings where id = p_booking and guest_id = public.current_guest_id();
+  if not found then raise exception 'Booking not found.'; end if;
+  if not (b.status = 'checked_out' or (b.status in ('confirmed','checked_in') and b.check_out <= (now() at time zone 'Asia/Manila')::date)) then
+    raise exception 'You can leave a review after your stay.';
+  end if;
+  if p_rating is null or p_rating < 1 or p_rating > 5 then raise exception 'Pick a rating from 1 to 5 stars.'; end if;
+  if length(trim(coalesce(p_body, ''))) < 10 then raise exception 'Tell us a little more (at least a sentence).'; end if;
+  insert into public.reviews (booking_id, guest_id, rating, body)
+  values (b.id, b.guest_id, p_rating, trim(p_body))
+  on conflict (booking_id) do update set rating = excluded.rating, body = excluded.body, status = 'pending'
+  where reviews.status <> 'published';
+end $$;
+
+create or replace function public.published_reviews()
+returns table (id uuid, guest_name text, rating int, body text, host_reply text, stayed_on date, created_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select r.id, split_part(g.full_name, ' ', 1) || coalesce(' ' || left(nullif(split_part(g.full_name, ' ', 2), ''), 1) || '.', ''),
+         r.rating, r.body, r.host_reply, b.check_in, r.created_at
+  from public.reviews r
+  join public.guests g on g.id = r.guest_id
+  join public.bookings b on b.id = r.booking_id
+  where r.status = 'published'
+  order by r.created_at desc;
+$$;
+
+grant execute on function public.current_guest_id() to authenticated;
+grant execute on function public.guest_save_profile(text, text) to authenticated;
+grant execute on function public.my_profile() to authenticated;
+grant execute on function public.my_bookings() to authenticated;
+grant execute on function public.my_payments(uuid) to authenticated;
+grant execute on function public.guest_send_message(text, text, date, date, int) to authenticated;
+grant execute on function public.guest_mark_seen() to authenticated;
+grant execute on function public.guest_cancel_booking(uuid) to authenticated;
+grant execute on function public.guest_attach_receipt(uuid, text, text) to authenticated;
+grant execute on function public.guest_save_review(uuid, int, text) to authenticated;
+grant execute on function public.published_reviews() to anon, authenticated;
 
 -- ─────────────────────────────────────────────────────────────
 -- Make the owner the admin. Replace the email, then run this line.

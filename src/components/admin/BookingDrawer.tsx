@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import {
@@ -9,6 +10,7 @@ import {
   LogIn,
   LogOut,
   Mail,
+  MessageSquare,
   Pencil,
   Phone,
   Plus,
@@ -238,6 +240,13 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
           )}
           {b.payment_method && <Info label="Paying by">{METHOD_LABEL[b.payment_method]}</Info>}
         </dl>
+        <Link
+          to={`/admin/inbox?guest=${b.guest_id}`}
+          onClick={onClose}
+          className="mt-4 inline-flex h-9 items-center gap-2 rounded-xl border border-sand-300 px-3 text-sm font-medium text-ink hover:bg-sand-100"
+        >
+          <MessageSquare className="size-4 text-brand-700" /> Message {b.guest_name.split(" ")[0]}
+        </Link>
         {b.special_requests && (
           <div className="mt-4 rounded-lg bg-sand-50 p-3">
             <p className="text-xs font-medium text-ink-muted">Guest requests</p>

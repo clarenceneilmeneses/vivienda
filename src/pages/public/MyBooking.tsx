@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Search } from "lucide-react";
+import { CheckCircle2, MessageCircle, Search } from "lucide-react";
+import { useAuth } from "../../lib/auth";
+import { useGuestUi } from "../../components/public/GuestContext";
 import { errorMessage, supabase } from "../../lib/supabase";
 import { useSettings } from "../../lib/queries";
 import { money, plural, prettyDate, prettyTime, nightsBetween } from "../../lib/format";
@@ -36,6 +38,8 @@ export default function MyBooking() {
   const email = params.get("email") ?? "";
   const isNew = params.get("new") === "1";
   const { data: settings } = useSettings();
+  const { session } = useAuth();
+  const { signIn } = useGuestUi();
 
   const [formRef, setFormRef] = useState(ref);
   const [formEmail, setFormEmail] = useState(email);
@@ -154,6 +158,26 @@ export default function MyBooking() {
             </Button>
           </form>
         </Card>
+      )}
+
+      {data && !session && (
+        <div className="mt-6 flex items-start gap-4 rounded-2xl border border-sand-200 bg-sand-50 p-5">
+          <MessageCircle className="mt-0.5 size-5 shrink-0 text-brand-700" />
+          <div className="min-w-0">
+            <p className="font-semibold text-ink">Track this booking and message us here</p>
+            <p className="mt-1 text-sm text-ink-soft">
+              Create a free account with <span className="font-medium text-ink">{email}</span>. This booking and any
+              others under that email appear in Trips, and you can chat with us anytime.
+            </p>
+            <button
+              type="button"
+              onClick={() => signIn({ mode: "signup" })}
+              className="mt-3 inline-flex h-9 cursor-pointer items-center rounded-full bg-brand-700 px-4 text-sm font-medium text-sand-50"
+            >
+              Create account
+            </button>
+          </div>
+        </div>
       )}
 
       {data && (

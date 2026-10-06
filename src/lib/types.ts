@@ -173,3 +173,54 @@ export function categoryLabel(value: string) {
 export const LIVE_STATUSES: BookingStatus[] = ["pending", "confirmed", "checked_in"];
 /** Statuses that count as real stays for occupancy. */
 export const STAY_STATUSES: BookingStatus[] = ["confirmed", "checked_in", "checked_out"];
+
+export interface Conversation {
+  id: string;
+  guest_id: string;
+  starred: boolean;
+  archived_at: string | null;
+  admin_unread: boolean;
+  admin_seen_at: string | null;
+  guest_seen_at: string | null;
+  last_message_at: string;
+  last_message_preview: string;
+  last_author: "guest" | "host" | null;
+  inquiry_check_in: string | null;
+  inquiry_check_out: string | null;
+  inquiry_guests: number | null;
+  created_at: string;
+}
+
+export type MessageKind = "message" | "problem" | "booking";
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  author: "guest" | "host";
+  author_name: string;
+  kind: MessageKind;
+  body: string;
+  booking_id: string | null;
+  edited_at: string | null;
+  unsent_at: string | null;
+  sent_at: string;
+}
+
+export interface QuickReply {
+  id: string;
+  title: string;
+  body: string;
+  sort_order: number;
+}
+
+export interface Review {
+  id: string;
+  booking_id: string;
+  guest_id: string;
+  rating: number;
+  body: string;
+  status: "pending" | "published" | "hidden";
+  host_reply: string;
+  host_replied_at: string | null;
+  created_at: string;
+}
