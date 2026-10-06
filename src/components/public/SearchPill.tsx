@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CalendarDays, ChevronDown, Minus, Plus, Search, Users } from "lucide-react";
+import { createPortal } from "react-dom";
+import { CalendarDays, ChevronDown, Minus, Plus, Search, Users, X } from "lucide-react";
 import { RangeCalendar } from "../RangeCalendar";
 import { prettyDate } from "../../lib/format";
 import { cn } from "../../lib/utils";
@@ -22,13 +23,17 @@ export function SearchPill({
   onChange,
   onSearch,
   maxGuests,
+  unavailable = EMPTY,
 }: {
   value: StaySearch;
   onChange: (v: StaySearch) => void;
   onSearch: () => void;
   maxGuests: number;
+  /** Nights already taken, crossed out in the calendar. */
+  unavailable?: Set<string>;
 }) {
   const [open, setOpen] = useState<null | "dates" | "guests">(null);
+  const [sheet, setSheet] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -56,35 +61,27 @@ export function SearchPill({
 
   return (
     <div ref={box} className="relative mx-auto max-w-3xl">
-      <div className="rounded-2xl border border-sand-200/60 bg-white p-1.5 text-left shadow-level-3 sm:p-2">
-        {/* Phone: dates | guests | icon button */}
-        <div className="flex items-stretch sm:hidden">
-          <PillField
-            active={open === "dates"}
-            onClick={() => toggle("dates")}
-            icon={<CalendarDays className="size-4" />}
-            label="Dates"
-            value={value.checkIn ? `${short(value.checkIn)} – ${value.checkOut ? short(value.checkOut) : "…"}` : ""}
-            placeholder="Add dates"
-          />
-          <Divider />
-          <PillField
-            active={open === "guests"}
-            onClick={() => toggle("guests")}
-            icon={<Users className="size-4" />}
-            label="Guests"
-            value={guestLabel}
-            placeholder=""
-          />
-          <button
-            type="button"
-            onClick={search}
-            aria-label="Search stays"
-            className="ml-1 grid w-11 shrink-0 cursor-pointer place-items-center rounded-xl bg-brand-700 text-sand-50 hover:bg-brand-700/90"
-          >
-            <Search className="size-4" />
-          </button>
-        </div>
+      <div className="rounded-full border border-sand-200/60 bg-white p-1 text-left shadow-level-3 sm:rounded-2xl sm:p-2">
+        {/* Phone: one "Start your search" pill that opens a sheet, as on Malaya and Airbnb. */}
+        <button
+          type="button"
+          onClick={() => setSheet(true)}
+          className="flex w-full cursor-pointer items-center gap-3 rounded-full px-4 py-2.5 text-left sm:hidden"
+        >
+          <Search className="size-5 shrink-0 text-ink" />
+          <span className="min-w-0">
+            {value.checkIn && value.checkOut ? (
+              <>
+                <span className="block truncate text-sm font-semibold text-ink">
+                  {short(value.checkIn)} – {short(value.checkOut)}
+                </span>
+                <span className="block truncate text-xs text-ink-muted">{guestLabel}</span>
+              </>
+            ) : (
+              <span className="block text-[15px] font-semibold text-ink">Start your search</span>
+            )}
+          </span>
+        </button>
 
         {/* From sm: check-in | check-out | guests | Search */}
         <div className="hidden items-stretch sm:flex">
@@ -133,7 +130,7 @@ export function SearchPill({
               onChange({ ...value, checkIn: r.checkIn ?? "", checkOut: r.checkOut ?? "" });
               if (r.checkIn && r.checkOut) setOpen(null);
             }}
-            unavailable={EMPTY}
+            unavailable={unavailable}
           />
           {value.checkIn && (
             <div className="mt-2 border-t border-sand-200/70 pt-2 text-right">
@@ -149,6 +146,20 @@ export function SearchPill({
         </div>
       )}
 
+      {sheet && (
+        <SearchSheet
+          value={value}
+          onChange={onChange}
+          maxGuests={maxGuests}
+          unavailable={unavailable}
+          onClose={() => setSheet(false)}
+          onSearch={() => {
+            setSheet(false);
+            onSearch();
+          }}
+        />
+      )}
+
       {open === "guests" && (
         <div className="absolute top-full right-0 z-30 mt-3 w-72 rounded-2xl border border-sand-200/70 bg-white p-5 shadow-level-4">
           <div className="flex items-center justify-between">
@@ -161,6 +172,93 @@ export function SearchPill({
         </div>
       )}
     </div>
+  );
+}
+
+/** The phone's search: a full-height sheet with When and Who, and Search at the bottom. */
+function SearchSheet({
+  value,
+  onChange,
+  maxGuests,
+  unavailable,
+  onClose,
+  onSearch,
+}: {
+  value: StaySearch;
+  onChange: (v: StaySearch) => void;
+  maxGuests: number;
+  unavailable: Set<string>;
+  onClose: () => void;
+  onSearch: () => void;
+}) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[55] flex flex-col bg-sand-100" data-site="public" role="dialog" aria-modal="true" aria-label="Search">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid size-9 cursor-pointer place-items-center rounded-full border border-sand-300 bg-white"
+          aria-label="Close search"
+        >
+          <X className="size-4" />
+        </button>
+        <p className="site-display text-lg text-brand-700">Your stay</p>
+        <span className="size-9" />
+      </div>
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+        <section className="rounded-3xl bg-white p-5 shadow-level-2">
+          <h2 className="font-display text-2xl text-ink">When?</h2>
+          <p className="mt-1 text-sm text-ink-muted">
+            {value.checkIn
+              ? `${prettyDate(value.checkIn, "EEE, MMM d")}${value.checkOut ? ` – ${prettyDate(value.checkOut, "EEE, MMM d")}` : " – pick check-out"}`
+              : "Pick check-in, then check-out."}
+          </p>
+          <div className="mt-4">
+            <RangeCalendar
+              months={1}
+              value={{ checkIn: value.checkIn || null, checkOut: value.checkOut || null }}
+              onChange={(r) => onChange({ ...value, checkIn: r.checkIn ?? "", checkOut: r.checkOut ?? "" })}
+              unavailable={unavailable}
+            />
+          </div>
+        </section>
+        <section className="flex items-center justify-between rounded-3xl bg-white p-5 shadow-level-2">
+          <div>
+            <h2 className="font-display text-2xl text-ink">Who?</h2>
+            <p className="text-sm text-ink-muted">Up to {maxGuests} guests</p>
+          </div>
+          <Stepper value={value.guests} min={1} max={maxGuests} onChange={(g) => onChange({ ...value, guests: g })} />
+        </section>
+      </div>
+      <div className="flex items-center justify-between border-t border-sand-200 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <button
+          type="button"
+          onClick={() => onChange({ ...value, checkIn: "", checkOut: "" })}
+          className="cursor-pointer text-sm font-semibold text-ink underline underline-offset-4"
+        >
+          Clear all
+        </button>
+        <button
+          type="button"
+          onClick={onSearch}
+          className="inline-flex h-12 cursor-pointer items-center gap-2 rounded-xl bg-brand-700 px-6 text-sm font-semibold text-sand-50"
+        >
+          <Search className="size-4" /> Search
+        </button>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

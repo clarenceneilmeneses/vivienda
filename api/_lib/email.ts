@@ -57,6 +57,7 @@ export interface SettingsRow {
   send_emails: boolean;
   admin_notify_email: string;
   reminder_days_before: number;
+  disabled_emails?: string[] | null;
 }
 
 const PROJECT_URL = "https://auksdkawdqufxmjwptwu.supabase.co";
@@ -334,6 +335,11 @@ export async function deliver(
   if (!email || !email.to) {
     const msg = type === "new_booking_admin" ? "No notification email set in Settings." : "Guest has no email.";
     await log("skipped", "", msg);
+    return { status: "skipped", message: msg };
+  }
+  if (s.disabled_emails?.includes(type)) {
+    const msg = "This email is switched off in Settings → Notifications.";
+    await log("skipped", email.to, msg);
     return { status: "skipped", message: msg };
   }
   if (type !== "new_booking_admin" && !s.send_emails) {

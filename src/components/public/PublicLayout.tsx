@@ -63,7 +63,7 @@ function PublicShell() {
   // Checkout drops the nav for the wordmark and a reassurance, as in Malaya.
   if (pathname === "/book") {
     return (
-      <div data-site="public" className="flex min-h-screen flex-col bg-white">
+      <div data-site="public" className="paper flex min-h-screen flex-col">
         <header className="border-b border-sand-200/60 bg-white">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-8">
             <Link to="/" aria-label="Vivienda home">
@@ -92,12 +92,12 @@ function PublicShell() {
   const onMessages = pathname === "/messages";
 
   return (
-    <div data-site="public" className="flex min-h-screen flex-col bg-white">
+    <div data-site="public" className="paper flex min-h-screen flex-col">
       {!onStay && <BottomNav />}
       {!onMessages && <MessagesFab raised={onStay} />}
       <header
         className={cn(
-          "sticky top-0 z-30 bg-white/85 backdrop-blur transition-transform duration-300",
+          "sticky top-0 z-30 border-b border-sand-200/60 bg-white/95 transition-transform duration-300",
           hidden ? "-translate-y-full" : "translate-y-0",
         )}
       >
@@ -105,27 +105,25 @@ function PublicShell() {
           <Link to="/" aria-label="Vivienda home">
             <Wordmark />
           </Link>
-          <nav className="hidden items-center gap-8 text-sm text-ink md:flex">
-            <Link to="/#stay" className="transition-colors hover:text-brand-700">
-              Stay
-            </Link>
-            <Link to="/#gallery" className="transition-colors hover:text-brand-700">
-              Photos
-            </Link>
-            <Link to="/#reviews" className="transition-colors hover:text-brand-700">
-              Reviews
-            </Link>
-            <Link to="/#contact" className="transition-colors hover:text-brand-700">
-              Contact
-            </Link>
+          <nav className="brand-caps hidden items-center gap-10 text-[15px] text-brand-700 md:flex">
+            {(
+              [
+                ["/#stay", "Stay"],
+                ["/#gallery", "Photos"],
+                ["/#reviews", "Reviews"],
+                ["/#contact", "Contact"],
+              ] as const
+            ).map(([to, label]) => (
+              <Link key={to} to={to} className="underline-offset-8 transition-opacity hover:opacity-70">
+                {label}
+              </Link>
+            ))}
           </nav>
-          <div className="flex items-center gap-4">
-            <div className="hidden md:block">
-              <AccountMenu />
-            </div>
+          <div className="hidden items-center gap-5 md:flex">
+            <AccountMenu />
             <Link
               to="/#stay"
-              className="inline-flex h-10 items-center rounded-full bg-brand-700 px-5 text-sm whitespace-nowrap font-medium text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90 sm:px-6"
+              className="brand-caps inline-flex h-10 items-center rounded-full bg-brand-700 px-6 text-[15px] whitespace-nowrap text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90"
             >
               Book Now
             </Link>
@@ -140,14 +138,12 @@ function PublicShell() {
       </main>
 
       {!onMessages && (
-      <footer id="contact" className="scroll-mt-4 border-t border-sand-200/70 bg-white">
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-14 pb-32 sm:grid-cols-2 md:pb-14 sm:px-8 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
+      <footer id="contact" className="scroll-mt-4 border-t-2 border-brand-700">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-14 pb-14 sm:grid-cols-2 sm:px-8 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
           <div>
             <Wordmark size="footer" />
-            <p className="mt-5 max-w-xs text-sm text-ink">A private pool resort in Alitagtag, Batangas.</p>
-            <p className="mt-5 text-[11px] text-brand-700">
-              &copy; {new Date().getFullYear()} {s?.resort_name ?? SITE.name}. All rights reserved.
-            </p>
+            <p className="brand-caps mt-4 text-[15px] text-ink">Our tropical haven.</p>
+            <p className="mt-4 max-w-xs text-[13px] text-ink-soft">A private pool resort in Alitagtag, Batangas.</p>
           </div>
 
           <FooterColumn title="EXPLORE">
@@ -202,6 +198,10 @@ function PublicShell() {
             </li>
           </FooterColumn>
         </div>
+        {/* The copyright on a white strip of its own; extra room on a phone for the floating tab bar. */}
+        <div className="bg-white px-4 pt-4 pb-28 text-center text-[13px] tracking-[0.06em] text-brand-700 md:pb-4">
+          &copy; {new Date().getFullYear()} {s?.resort_name ?? SITE.name}. All rights reserved.
+        </div>
       </footer>
       )}
     </div>
@@ -211,8 +211,8 @@ function PublicShell() {
 function FooterColumn({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold tracking-[0.2em] text-brand-700">{title}</p>
-      <ul className="mt-4 space-y-3.5 text-[13px]">{children}</ul>
+      <p className="text-[15px] font-bold text-brand-700">{title.charAt(0) + title.slice(1).toLowerCase()}</p>
+      <ul className="mt-4 space-y-3 text-sm font-medium">{children}</ul>
     </div>
   );
 }
@@ -228,7 +228,7 @@ function FooterLink({
   external?: boolean;
   children: ReactNode;
 }) {
-  const cls = "text-ink-muted transition-colors hover:text-brand-700";
+  const cls = "text-ink transition-colors hover:text-brand-700 before:mr-1 before:content-['·']";
   return (
     <li>
       {to ? (

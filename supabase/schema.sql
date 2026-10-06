@@ -40,6 +40,8 @@ create table if not exists public.settings (
   updated_at timestamptz not null default now()
 );
 insert into public.settings (id) values (1) on conflict (id) do nothing;
+-- Emails the owner switched off under Settings → Notifications (by type).
+alter table public.settings add column if not exists disabled_emails text[] not null default '{}';
 
 create table if not exists public.units (
   id uuid primary key default gen_random_uuid(),

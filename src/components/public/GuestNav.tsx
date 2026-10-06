@@ -73,7 +73,7 @@ export function AccountMenu() {
       <button
         type="button"
         onClick={() => signIn()}
-        className="cursor-pointer text-sm font-medium whitespace-nowrap text-ink transition-colors hover:text-brand-700"
+        className="brand-caps cursor-pointer text-[15px] whitespace-nowrap text-brand-700 transition-opacity hover:opacity-70"
       >
         Sign in
       </button>

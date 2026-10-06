@@ -27,6 +27,8 @@ export interface Settings {
   send_emails: boolean;
   admin_notify_email: string;
   reminder_days_before: number;
+  /** Email types switched off under Settings → Notifications. */
+  disabled_emails: string[];
 }
 
 export interface Unit {

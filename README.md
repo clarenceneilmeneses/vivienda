@@ -9,7 +9,8 @@ Booking website and admin for a single resort. Guests book and pay online, keep 
 **Guest website**
 - Home page with rooms, rates, house rules and contact
 - Booking page: pick a room and dates (taken nights are crossed out, nightly prices shown), enter details (local or international mobile), pay by GCash or bank transfer and upload a receipt, or choose "pay later". Guests must accept the agreement before submitting.
-- "My booking" page: look up status and balance with reference + email (no account needed)
+- "Find your booking" (`/my-booking`): guests type the email they booked with and get a one-tap sign-in link that opens all their bookings in Trips. Looking up by confirmation code is still there as a fallback, and the links in booking emails still open the booking directly.
+- The look follows Malaya's redesign: paper background, condensed caps headings (Galdeano, the free stand-in Malaya used for Barqen), Montserrat body text, and a "Start your search" sheet on phones.
 
 **Guest accounts** (Airbnb-style, scaled to one resort)
 - Sign in / create account / forgot password from the header, the phone tab bar, or any "Message host" button. Accounts are optional; booking still works without one.
@@ -25,11 +26,12 @@ Booking website and admin for a single resort. Guests book and pay online, keep 
 - **Dashboard:** alerts for unread messages, requests to confirm and today's check-ins/outs; tiles for this month's income, occupancy, guests in house and unpaid balances; arrivals for the next 7 days; a 6-month income vs expenses chart
 - **Bookings:** tabs (needs action, upcoming, in house, past, cancelled), search and CSV export. The detail panel handles confirm, decline, check-in, check-out and cancel (each can email the guest), recording payments and refunds, viewing the uploaded receipt, private notes, resending any email, and the email history.
 - **Add booking:** for Facebook, walk-in and phone bookings. Prices the stay automatically and allows a discount or a custom total.
-- **Calendar:** every room by day, with booking bars, per-day prices, blocked dates and occupancy. Click a day to block it, set a special price (one day or a range) or start a booking.
+- **Calendar:** Airbnb-style host calendar, as in Malaya. A month of day tiles shows each night's price, guest-name chips for bookings, closed nights hatched, and special prices tagged. Drag across nights (or click one, then another) to close or reopen them with a reason, set a nightly price or reset it, or add a booking for those dates. Click a booking to open it.
 - **Guests:** history, repeat-guest flag, total paid, notes and CSV export
 - **Finance:** income (payments received) vs expenses by month, net profit and margin, spending by category, income by room, unpaid balances, and an expense log with CSV export
 - **Rooms & rates:** weekday, Friday–Saturday and extra-guest rates, capacity, amenities, photos and visibility
-- **Settings:** resort info, check-in/out times, downpayment %, GCash/bank details, email toggles, house rules, cancellation policy and waiver text
+- **Settings**, split into tabs as in Malaya: General (name, contact, location), Booking rules (times, downpayment, house rules, cancellation, agreement), Payments (GCash and bank, with a preview of what guests see), Notifications (every email with its own switch, plus a log of recent sends), Quick replies, and Account & access.
+- **Layout:** Malaya's admin shell, with foldable sidebar groups, a breadcrumb trail, sub-tab pills, an account menu with password change, and a bottom nav pill with More on phones.
 
 **Emails** (via Resend): booking received, new-booking alert to the owner, confirmed, declined, cancelled, payment receipt, an automatic arrival reminder N days before check-in (daily cron), and new-message alerts both ways. Message alerts go out at most once every 10 minutes per conversation, and never for a reply the guest has already read.
 
@@ -50,7 +52,8 @@ Booking website and admin for a single resort. Guests book and pay online, keep 
    insert into public.admins (email) values ('owner@email.com');
    ```
 4. **Authentication → Sign In / Providers → Email**: keep **"Allow new users to sign up"** ON (guests create accounts) and keep **"Confirm email"** ON. Confirming the email is what lets an account safely pick up earlier bookings made with that email. Guest accounts can never reach the admin; only emails in `admins` can.
-5. **Authentication → URL Configuration**: set **Site URL** to the live site (e.g. `https://vivienda.ph`) and add `https://vivienda.ph/**` and `http://localhost:5173/**` to **Redirect URLs**, so the confirm-email and reset-password links come back to the site.
+5. **Authentication → Emails → Magic Link**: the default template works. It's the email "Find your booking" sends. Supabase's built-in mailer only sends a few emails an hour; for real traffic, add custom SMTP under Authentication → Emails (Resend gives you SMTP credentials).
+6. **Authentication → URL Configuration**: set **Site URL** to the live site (e.g. `https://vivienda.ph`) and add `https://vivienda.ph/**` and `http://localhost:5173/**` to **Redirect URLs**, so the confirm-email and reset-password links come back to the site.
 
 **Updating an existing database:** paste the whole `schema.sql` again and run it. It is safe to re-run, and adds guest accounts, messages, quick replies and reviews without touching existing data.
 

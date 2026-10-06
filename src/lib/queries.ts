@@ -28,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   send_emails: true,
   admin_notify_email: "",
   reminder_days_before: 2,
+  disabled_emails: [],
 };
 
 export function useSettings() {

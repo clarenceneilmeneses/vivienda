@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { useQuickReplies } from "../../components/admin/QuickReplies";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, isThisWeek, isToday, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -16,11 +17,9 @@ import {
   MailWarning,
   MessageSquareText,
   Phone,
-  Plus,
   Search,
   Siren,
   Star,
-  Trash2,
   UserRound,
   XCircle,
   Zap,
@@ -31,8 +30,8 @@ import { isoDate, money, plural, prettyDate, stayRange } from "../../lib/format"
 import { normalizeMessage, notifyMessage, useLiveTables } from "../../lib/guest";
 import { SITE } from "../../lib/site";
 import { cn } from "../../lib/utils";
-import type { BookingSummary, Conversation, Message, QuickReply } from "../../lib/types";
-import { Button, EmptyState, Field, Input, Modal, Spinner, StatusBadge, Textarea } from "../../components/ui";
+import type { BookingSummary, Conversation, Message } from "../../lib/types";
+import { Button, EmptyState, Input, Spinner, StatusBadge } from "../../components/ui";
 import { MessageThread } from "../../components/MessageThread";
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
 import { BookingForm } from "../../components/admin/BookingForm";
@@ -130,7 +129,7 @@ export default function Inbox() {
   const selected = rows?.find((r) => r.id === selectedId) ?? null;
 
   return (
-    <div className="-mx-4 -my-6 flex h-[calc(100dvh-3.75rem)] overflow-hidden bg-white sm:-mx-6 sm:-my-8 lg:h-[calc(100vh-1.5rem-3.75rem)]">
+    <div className="flex h-[calc(100dvh-3.5rem-var(--mobile-nav-space))] overflow-hidden bg-white lg:h-full">
       {/* Conversation list */}
       <section
         className={cn(
@@ -141,7 +140,12 @@ export default function Inbox() {
         <div className="border-b border-sand-200 px-4 pt-4 pb-3">
           <div className="flex items-center justify-between">
             <h1 className="font-display text-2xl font-medium text-ink">Messages</h1>
-            <QuickRepliesButton />
+            <Link
+              to="/admin/settings/quick-replies"
+              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-sand-300 px-3 text-sm text-ink-soft hover:bg-sand-100"
+            >
+              <Zap className="size-3.5" /> Quick replies
+            </Link>
           </div>
           <div className="no-scrollbar mt-3 flex gap-1.5 overflow-x-auto">
             {(
@@ -574,7 +578,15 @@ function Composer({
             <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
             <div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-80 overflow-y-auto rounded-2xl border border-sand-200 bg-white py-1.5 shadow-level-4">
               <p className="px-4 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-ink-muted uppercase">Quick replies</p>
-              {replies.length === 0 && <p className="px-4 pb-3 text-sm text-ink-muted">None yet. Add some with Quick replies at the top.</p>}
+              {replies.length === 0 && (
+                <p className="px-4 pb-3 text-sm text-ink-muted">
+                  None yet. Add some in{" "}
+                  <Link to="/admin/settings/quick-replies" className="underline">
+                    Settings → Quick replies
+                  </Link>
+                  .
+                </p>
+              )}
               {replies.map((r) => (
                 <button
                   key={r.id}
@@ -779,117 +791,3 @@ function DetailsPane({
   );
 }
 
-// ───────────────────────── quick replies ─────────────────────────
-
-export function useQuickReplies() {
-  return useQuery({
-    queryKey: ["inbox", "quick-replies"],
-    queryFn: async (): Promise<QuickReply[]> => {
-      const { data, error } = await supabase.from("quick_replies").select("*").order("sort_order").order("created_at");
-      if (error) return [];
-      return (data ?? []) as QuickReply[];
-    },
-  });
-}
-
-function QuickRepliesButton() {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
-        <Zap className="size-3.5" /> Quick replies
-      </Button>
-      <QuickRepliesManager open={open} onClose={() => setOpen(false)} />
-    </>
-  );
-}
-
-function QuickRepliesManager({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const qc = useQueryClient();
-  const { data: replies = [] } = useQuickReplies();
-  const [editing, setEditing] = useState<Partial<QuickReply> | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function save() {
-    if (!editing?.title?.trim() || !editing.body?.trim()) return;
-    setBusy(true);
-    const values = { title: editing.title.trim(), body: editing.body.trim() };
-    const { error } = editing.id
-      ? await supabase.from("quick_replies").update(values).eq("id", editing.id)
-      : await supabase.from("quick_replies").insert({ ...values, sort_order: replies.length });
-    setBusy(false);
-    if (error) return void toast.error(errorMessage(error));
-    setEditing(null);
-    await qc.invalidateQueries({ queryKey: ["inbox", "quick-replies"] });
-  }
-
-  async function remove(id: string) {
-    if (!confirm("Delete this quick reply?")) return;
-    const { error } = await supabase.from("quick_replies").delete().eq("id", id);
-    if (error) return void toast.error(errorMessage(error));
-    await qc.invalidateQueries({ queryKey: ["inbox", "quick-replies"] });
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Quick replies"
-      description="Saved answers you can drop into any conversation. {guest} becomes the guest's first name, {resort} the resort's name."
-      size="lg"
-    >
-      {editing ? (
-        <div className="space-y-4">
-          <Field label="Title" hint="A short label, like “Payment details”.">
-            {(id) => (
-              <Input id={id} value={editing.title ?? ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
-            )}
-          </Field>
-          <Field label="Message">
-            {(id) => (
-              <Textarea
-                id={id}
-                rows={6}
-                value={editing.body ?? ""}
-                onChange={(e) => setEditing({ ...editing, body: e.target.value })}
-              />
-            )}
-          </Field>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setEditing(null)}>
-              Cancel
-            </Button>
-            <Button loading={busy} onClick={save} disabled={!editing.title?.trim() || !editing.body?.trim()}>
-              Save
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <ul className="divide-y divide-sand-200">
-            {replies.map((r) => (
-              <li key={r.id} className="flex items-start gap-3 py-3">
-                <button type="button" onClick={() => setEditing(r)} className="min-w-0 flex-1 cursor-pointer text-left">
-                  <span className="block text-sm font-medium text-ink">{r.title}</span>
-                  <span className="line-clamp-2 text-xs text-ink-muted">{r.body}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => remove(r.id)}
-                  className="cursor-pointer rounded-md p-1.5 text-ink-muted hover:bg-red-50 hover:text-red-700"
-                  aria-label={`Delete ${r.title}`}
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </li>
-            ))}
-            {replies.length === 0 && <li className="py-6 text-center text-sm text-ink-muted">No quick replies yet.</li>}
-          </ul>
-          <Button className="mt-4" variant="secondary" onClick={() => setEditing({ title: "", body: "" })}>
-            <Plus className="size-4" /> Add quick reply
-          </Button>
-        </>
-      )}
-    </Modal>
-  );
-}

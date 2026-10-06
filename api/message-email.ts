@@ -86,6 +86,10 @@ export async function POST(request: Request) {
     await log("skipped", "No email address to send to.");
     return json({ ok: true, status: "skipped" });
   }
+  if (s.disabled_emails?.includes(type)) {
+    await log("skipped", "Switched off in Settings → Notifications.");
+    return json({ ok: true, status: "skipped" });
+  }
   if (direction === "to_guest" && !s.send_emails) {
     await log("skipped", "Guest emails are turned off in Settings.");
     return json({ ok: true, status: "skipped" });

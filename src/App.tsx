@@ -24,7 +24,12 @@ const Calendar = lazy(() => import("./pages/admin/Calendar"));
 const Guests = lazy(() => import("./pages/admin/Guests"));
 const Finance = lazy(() => import("./pages/admin/Finance"));
 const Units = lazy(() => import("./pages/admin/Units"));
-const SettingsPage = lazy(() => import("./pages/admin/Settings"));
+const GeneralSettings = lazy(() => import("./pages/admin/settings/General"));
+const BookingRules = lazy(() => import("./pages/admin/settings/BookingRules"));
+const PaymentSettings = lazy(() => import("./pages/admin/settings/Payments"));
+const NotificationSettings = lazy(() => import("./pages/admin/settings/Notifications"));
+const QuickRepliesPage = lazy(() => import("./pages/admin/settings/QuickRepliesPage"));
+const AccountSettings = lazy(() => import("./pages/admin/settings/Account"));
 const Inbox = lazy(() => import("./pages/admin/Inbox"));
 const Reviews = lazy(() => import("./pages/admin/Reviews"));
 
@@ -59,7 +64,12 @@ export default function App() {
           <Route path="guests" element={<Guests />} />
           <Route path="finance" element={<Finance />} />
           <Route path="units" element={<Units />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings" element={<GeneralSettings />} />
+          <Route path="settings/booking-rules" element={<BookingRules />} />
+          <Route path="settings/payments" element={<PaymentSettings />} />
+          <Route path="settings/notifications" element={<NotificationSettings />} />
+          <Route path="settings/quick-replies" element={<QuickRepliesPage />} />
+          <Route path="settings/account" element={<AccountSettings />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

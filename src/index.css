@@ -72,9 +72,34 @@
   }
 }
 
-/* The guest site swaps the heading face for the display serif. */
+/*
+ * The guest site, on Malaya's redesign (MAIN.psd, 2026-09-28): a warm paper
+ * ground with a fine grain, a condensed display face for every heading, nav
+ * and button label (Galdeano, the free stand-in Malaya used before its
+ * licensed Barqen), Montserrat for body text, and dark-brown ink instead of
+ * neutral black. The admin keeps Outfit and Karla.
+ */
 [data-site="public"] {
-  --font-display: "Playfair Display", ui-serif, Georgia, Cambria, serif;
+  --font-display: "Galdeano", ui-serif, Georgia, serif;
+  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --color-ink: #3c2411;
+  --color-ink-soft: #4d3726;
+  --color-ink-muted: #5f4a3a;
+  --brand-heading: #8b5826;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+}
+
+/* Galdeano has one weight; a faux-bold version smudges. */
+[data-site="public"] :is(h1, h2, h3, .font-display, .site-display, .brand-caps) {
+  font-weight: 400 !important;
+}
+
+/* The paper: off-white with a grain drawn by an SVG noise filter. */
+.paper {
+  background-color: #f5f4f2;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .33 0 0 0 0 .24 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 240px 240px;
 }
 
 @layer components {
@@ -82,7 +107,25 @@
   .site-display {
     font-family: var(--font-display);
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.06em;
+  }
+
+  /* Display caps, tracked like the PSDs (100/1000 em): nav, buttons, labels. */
+  .brand-caps {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* "ALITAGTAG | BATANGAS": the widest tracking on the page. */
+  .brand-eyebrow {
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5em;
+  }
+
+  .text-brand-heading {
+    color: var(--brand-heading, var(--color-brand-700));
   }
 
   /* Small tracked label that sits over a heading or a number. */

@@ -1,11 +1,11 @@
 import { useId } from "react";
 
-/** The palm frond behind the hero, drawn the same way as Malaya's. */
+/** Palm-leaf shadows falling across the paper, as in Malaya's hero. */
 export function FrondBackdrop({ className = "" }: { className?: string }) {
   return (
     <div aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
-      <Fern className="absolute -top-10 -left-24 h-[16rem] w-[16rem] opacity-60 sm:-top-8 sm:-left-16 sm:h-[24rem] sm:w-[24rem] sm:opacity-100 lg:-top-12 lg:-left-20 lg:h-[30rem] lg:w-[30rem]" />
-      <Fern className="absolute -top-16 -right-28 hidden h-[26rem] w-[26rem] -scale-x-100 opacity-[0.07] blur-[3px] sm:block lg:-top-20 lg:-right-24 lg:h-[32rem] lg:w-[32rem]" />
+      <Fern className="absolute -top-16 -left-28 h-[18rem] w-[18rem] rotate-12 opacity-[0.09] blur-[3px] sm:h-[28rem] sm:w-[28rem] lg:-top-20 lg:-left-24 lg:h-[34rem] lg:w-[34rem]" />
+      <Fern className="absolute -top-20 -right-28 hidden h-[26rem] w-[26rem] -scale-x-100 -rotate-6 opacity-[0.08] blur-[4px] sm:block lg:-right-24 lg:h-[34rem] lg:w-[34rem]" />
     </div>
   );
 }
@@ -42,7 +42,7 @@ function leafletPath(l: number, w: number) {
 function Fern({ className = "" }: { className?: string }) {
   const fade = useId();
   return (
-    <svg viewBox="0 0 360 300" className={className} fill="none" style={{ color: "oklch(0.368 0.044 116)" }}>
+    <svg viewBox="0 0 360 300" className={className} fill="none" style={{ color: "#2b1c10" }}>
       <defs>
         <linearGradient id={fade} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="currentColor" stopOpacity="0.9" />

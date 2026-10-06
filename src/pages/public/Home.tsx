@@ -17,7 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import { useSettings, useUnits } from "../../lib/queries";
+import { useSettings, useUnavailableNights, useUnits } from "../../lib/queries";
 import { isoDate, money, nightsBetween, prettyDate } from "../../lib/format";
 import { GALLERY, LOCATION_LABEL, PHOTOS, PROMO, RECOMMEND, REVIEWS, SITE, SLEEPING } from "../../lib/site";
 import { cn } from "../../lib/utils";
@@ -36,6 +36,7 @@ export default function Home() {
   const [params, setParams] = useSearchParams();
   // Vivienda is one resort, booked whole. It is the first active listing.
   const resort = (units ?? []).find((u) => u.is_active);
+  const { data: taken } = useUnavailableNights(resort?.id, isoDate(new Date()), isoDate(new Date(Date.now() + 400 * 86_400_000)));
 
   // The search lives in the URL, so a result can be shared or come back to.
   const applied: StaySearch = {
@@ -100,32 +101,39 @@ export default function Home() {
   const promoOn = PROMO && PROMO.until >= isoDate(new Date());
   return (
     <>
-      {/* Hero: centred display serif on white with the frond, as on the Malaya landing. */}
-      <section className="relative overflow-hidden px-4 pt-12 pb-10 text-center sm:px-8 sm:pt-20 sm:pb-14">
+      {/* Hero, as on Malaya's landing: paper, palm shadows, condensed caps. On a
+          phone it steps aside for the search, as Malaya's does. */}
+      <section className="relative hidden overflow-hidden px-4 pt-16 pb-12 text-center sm:block sm:px-8 sm:pt-20">
         <FrondBackdrop />
         <div className="relative mx-auto max-w-5xl">
-          <p className="text-[11px] font-semibold tracking-[0.28em] text-brand-700">
-            ALITAGTAG <Dot /> BATANGAS <Dot /> PRIVATE POOL
+          <p className="brand-eyebrow pl-[0.5em] text-[12px] text-ink">
+            Alitagtag <span className="mx-1 text-ink/40">|</span> Batangas
           </p>
-          <h1 className="site-display mx-auto mt-7 max-w-4xl text-[2.6rem] leading-[1.05] text-brand-700 sm:text-6xl lg:text-7xl">
+          <h1 className="site-display text-brand-heading mx-auto mt-6 max-w-4xl text-6xl leading-[0.95] lg:text-[5.75rem]">
             Book your
             <br />
-            Vivienda getaway.
+            Vivienda getaway
           </h1>
-          <span className="mx-auto mt-7 block h-px w-11 bg-brand-700/30" aria-hidden />
-          <p className="mt-6 font-display text-lg text-ink sm:text-xl">
-            Looking for a private getaway with your family or tropa? This is it.
-          </p>
+          <p className="brand-eyebrow mt-8 pl-[0.5em] text-[12px] text-ink">Your private pool, one book away.</p>
         </div>
       </section>
 
       {/* The search, sticky. Outside the hero because sticky is inert inside overflow-hidden. */}
-      <div className="pointer-events-none sticky top-0 z-20 px-4 pt-3 pb-3 sm:px-8 md:pt-2 md:pb-4 [&>*]:pointer-events-auto">
-        <SearchPill value={draft} onChange={setDraft} onSearch={runSearch} maxGuests={Math.max(resort?.max_guests ?? 2, 2)} />
+      <div className="pointer-events-none sticky top-0 z-20 px-4 pt-4 pb-3 sm:px-8 sm:pt-2 sm:pb-4 [&>*]:pointer-events-auto">
+        <SearchPill
+          value={draft}
+          onChange={setDraft}
+          onSearch={runSearch}
+          maxGuests={Math.max(resort?.max_guests ?? 2, 2)}
+          unavailable={taken}
+        />
       </div>
 
-      <section id="stay" className="scroll-mt-24 px-4 py-8 sm:px-8 md:py-14">
+      <section id="stay" className="scroll-mt-24 px-4 py-6 sm:px-8 md:py-12">
         <div className="mx-auto max-w-7xl">
+          <h2 className="site-display text-brand-heading mb-5 text-left text-[1.6rem] leading-none sm:mb-8 sm:text-center sm:text-5xl">
+            Your private haven
+          </h2>
           {isLoading ? (
             <div className="h-[420px] animate-pulse rounded-3xl bg-sand-100" />
           ) : !resort ? (
@@ -262,9 +270,6 @@ function ReviewMarquee({ guestReviews }: { guestReviews: PublishedReview[] }) {
   );
 }
 
-function Dot() {
-  return <span className="mx-2 text-brand-700/60 sm:mx-3">•</span>;
-}
 
 /** A bento of the best shots, and every photo one click away. */
 function PhotoGallery() {

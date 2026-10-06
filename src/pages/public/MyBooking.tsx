@@ -1,14 +1,14 @@
 import { useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, MessageCircle, Search } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Hash, Mail, MailCheck, MessageCircle, Search } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { useGuestUi } from "../../components/public/GuestContext";
 import { errorMessage, supabase } from "../../lib/supabase";
 import { useSettings } from "../../lib/queries";
 import { money, plural, prettyDate, prettyTime, nightsBetween } from "../../lib/format";
 import type { BookingStatus } from "../../lib/types";
-import { Button, Card, ErrorBox, Field, Input, Spinner, StatusBadge } from "../../components/ui";
+import { Button, Card, ErrorBox, Input, Spinner, StatusBadge } from "../../components/ui";
 
 interface StatusRow {
   ref: string;
@@ -38,11 +38,9 @@ export default function MyBooking() {
   const email = params.get("email") ?? "";
   const isNew = params.get("new") === "1";
   const { data: settings } = useSettings();
-  const { session } = useAuth();
+  const { session, isAdmin } = useAuth();
   const { signIn } = useGuestUi();
 
-  const [formRef, setFormRef] = useState(ref);
-  const [formEmail, setFormEmail] = useState(email);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["booking_status", ref, email],
@@ -55,10 +53,8 @@ export default function MyBooking() {
     },
   });
 
-  function lookup(e: FormEvent) {
-    e.preventDefault();
-    setParams({ ref: formRef.trim().toUpperCase(), email: formEmail.trim() });
-  }
+  // Signed in, every booking is already in Trips.
+  if (session && !isAdmin && !ref) return <Navigate to="/trips" replace />;
 
   return (
     <div className="mx-auto max-w-xl px-4 py-14">
@@ -73,7 +69,7 @@ export default function MyBooking() {
         </div>
       )}
 
-      {!isNew && <h1 className="site-display mb-6 text-3xl text-brand-700 sm:text-4xl">My booking.</h1>}
+      {!isNew && data && <h1 className="site-display text-brand-heading mb-6 text-3xl sm:text-4xl">Your booking</h1>}
 
       {ref && email && isLoading ? (
         <Spinner />
@@ -130,34 +126,12 @@ export default function MyBooking() {
           </div>
         </Card>
       ) : (
-        <Card className="p-5">
-          {ref && email && !isLoading && (
-            <ErrorBox className="mb-4">
-              {error ? errorMessage(error) : "We couldn't find a booking with that reference and email."}
-            </ErrorBox>
-          )}
-          <form onSubmit={lookup} className="space-y-4">
-            <Field label="Booking reference" hint="It looks like VIV-7K3Q9P and is in your confirmation email.">
-              {(id) => (
-                <Input
-                  id={id}
-                  value={formRef}
-                  onChange={(e) => setFormRef(e.target.value)}
-                  className="font-mono uppercase"
-                  required
-                />
-              )}
-            </Field>
-            <Field label="Email used for booking">
-              {(id) => (
-                <Input id={id} type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} required />
-              )}
-            </Field>
-            <Button type="submit" className="w-full">
-              <Search className="size-4" /> Find my booking
-            </Button>
-          </form>
-        </Card>
+        <FindBooking
+          notFound={Boolean(ref && email && !isLoading)}
+          error={error ? errorMessage(error) : null}
+          initialEmail={email}
+          onLookup={(r, e) => setParams({ ref: r.trim().toUpperCase(), email: e.trim() })}
+        />
       )}
 
       {data && !session && (
@@ -196,6 +170,152 @@ function Item({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-xs text-ink-muted">{label}</dt>
       <dd className="mt-0.5 font-medium">{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * Finding a booking without remembering a code: type the email you booked
+ * with and we send a one-tap sign-in link. Opening it signs you in (an
+ * account is made if there isn't one) and every booking under that email is
+ * waiting in Trips. The confirmation-code lookup is still there, one tap away.
+ */
+function FindBooking({
+  notFound,
+  error,
+  initialEmail,
+  onLookup,
+}: {
+  notFound: boolean;
+  error: string | null;
+  initialEmail: string;
+  onLookup: (ref: string, email: string) => void;
+}) {
+  const { signIn } = useGuestUi();
+  const [mode, setMode] = useState<"link" | "code">(notFound ? "code" : "link");
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function sendLink(e: FormEvent) {
+    e.preventDefault();
+    setProblem(null);
+    const em = email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return setProblem("Enter the email you booked with.");
+    setBusy(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: em,
+      options: { emailRedirectTo: `${window.location.origin}/trips`, shouldCreateUser: true },
+    });
+    setBusy(false);
+    if (error) return setProblem(errorMessage(error));
+    setSent(true);
+  }
+
+  if (sent) {
+    return (
+      <div className="rounded-3xl bg-white p-8 text-center shadow-level-3">
+        <span className="mx-auto grid size-14 place-items-center rounded-full bg-brand-700/10 text-brand-700">
+          <MailCheck className="size-7" />
+        </span>
+        <h1 className="site-display text-brand-heading mt-5 text-3xl">Check your email</h1>
+        <p className="mx-auto mt-3 max-w-[34ch] text-sm text-ink-soft">
+          We sent a sign-in link to <span className="font-medium text-ink">{email}</span>. Open it on this device and
+          your bookings will be waiting in Trips.
+        </p>
+        <button
+          type="button"
+          onClick={() => setSent(false)}
+          className="mt-6 cursor-pointer text-sm font-medium text-ink underline underline-offset-4"
+        >
+          Use a different email
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl bg-white p-6 shadow-level-3 sm:p-8">
+      {mode === "link" ? (
+        <>
+          <h1 className="site-display text-brand-heading text-3xl sm:text-4xl">Find your booking</h1>
+          <p className="mt-2 text-sm text-ink-soft">
+            Enter the email you booked with. We'll send you a link that opens all your bookings, no code or password
+            needed.
+          </p>
+          <form onSubmit={sendLink} noValidate className="mt-6 space-y-3">
+            <div className="relative">
+              <Mail className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-ink-muted" />
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@email.com"
+                autoComplete="email"
+                aria-label="Email you booked with"
+                className="h-12 rounded-full pl-11 text-base"
+              />
+            </div>
+            <ErrorBox>{problem}</ErrorBox>
+            <Button type="submit" size="lg" loading={busy} className="w-full rounded-full">
+              Email me a link
+            </Button>
+          </form>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-sand-200 pt-5 text-sm">
+            <button
+              type="button"
+              onClick={() => setMode("code")}
+              className="inline-flex cursor-pointer items-center gap-1.5 text-ink-soft hover:text-ink"
+            >
+              <Hash className="size-4" /> I have my confirmation code
+            </button>
+            <button type="button" onClick={() => signIn()} className="cursor-pointer text-ink-soft hover:text-ink">
+              Sign in with a password
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => setMode("link")}
+            className="mb-4 inline-flex cursor-pointer items-center gap-1.5 text-sm text-ink-muted hover:text-ink"
+          >
+            <ArrowLeft className="size-4" /> Back
+          </button>
+          <h1 className="site-display text-brand-heading text-3xl">Look up by code</h1>
+          <p className="mt-2 text-sm text-ink-soft">The code is in your confirmation email and looks like VIV-7K3Q9P.</p>
+          {notFound && <ErrorBox className="mt-4">{error ?? "We couldn't find a booking with that code and email."}</ErrorBox>}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (code.trim() && email.trim()) onLookup(code, email);
+            }}
+            className="mt-5 space-y-3"
+          >
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="VIV-XXXXXX"
+              aria-label="Confirmation code"
+              className="h-12 rounded-full px-5 font-mono text-base uppercase"
+            />
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email you booked with"
+              aria-label="Email you booked with"
+              className="h-12 rounded-full px-5 text-base"
+            />
+            <Button type="submit" size="lg" className="w-full rounded-full" disabled={!code.trim() || !email.trim()}>
+              <Search className="size-4" /> Find booking
+            </Button>
+          </form>
+        </>
+      )}
     </div>
   );
 }
