@@ -39,7 +39,7 @@ import { RangeCalendar, type DateRange } from "../../components/RangeCalendar";
 import { Spinner } from "../../components/ui";
 import { PartyPicker, partyFromParams, partyLabel, partyQuery, type Party } from "../../components/public/PartyPicker";
 import { averageRating, unitPhotos } from "../../components/public/StayBits";
-import { TestimonialCard, toTestimonials } from "../../components/public/Reviews";
+import { GuestReviewList, toTestimonials } from "../../components/public/Reviews";
 import { amenityIcon, ROOMS } from "../../components/public/HomeSections";
 import { useGuestUi } from "../../components/public/GuestContext";
 import { usePublishedReviews } from "../../lib/guest";
@@ -110,7 +110,6 @@ export default function Stay() {
   const rating = averageRating(guestReviews);
   const rated = guestReviews.filter((r) => r.rating != null).length;
   const testimonials = toTestimonials(guestReviews);
-  const recommends = testimonials.filter((t) => t.rating == null && t.recommends).length;
 
   function reserve() {
     if (!ready) {
@@ -312,21 +311,9 @@ export default function Stay() {
           </div>
 
           {testimonials.length > 0 && (
-            <Block
-              title="Reviews"
-              aside={
-                <span className="text-sm font-medium text-ink-soft">
-                  {rating != null ? `★ ${rating.toFixed(2)} · ${rated} rated${recommends ? " · " : ""}` : ""}
-                  {recommends ? `${recommends} recommend on Facebook` : ""}
-                </span>
-              }
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                {testimonials.slice(0, 6).map((t) => (
-                  <TestimonialCard key={t.id} t={t} className="bg-linen/50 shadow-none" />
-                ))}
-              </div>
-            </Block>
+            <section id="reviews" className="scroll-mt-24 rounded-3xl border border-sand-200/60 bg-white p-5 shadow-level-1 sm:p-7">
+              <GuestReviewList testimonials={testimonials} />
+            </section>
           )}
 
           <Block title="Your host">

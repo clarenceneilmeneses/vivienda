@@ -34,7 +34,15 @@ export interface Testimonial {
   avatarUrl: string | null;
   source: ReviewSource;
   reply: string;
+  /** For sorting: the month, as "2026-08-01". */
+  date: string;
 }
+
+/** "August 2026" → "2026-08-01". */
+const isoMonth = (label: string) => {
+  const d = new Date(`1 ${label}`);
+  return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+};
 
 const monthOf = (iso: string | null | undefined) => (iso ? format(parseISO(iso.slice(0, 10)), "MMMM yyyy") : "");
 
@@ -56,6 +64,7 @@ export function toTestimonials(published: PublishedReview[]): Testimonial[] {
       avatarUrl: reviewAvatarUrl(r.avatar_path) ?? local?.avatar ?? null,
       source: r.source ?? "website",
       reply: r.host_reply,
+      date: (r.stayed_on ?? r.created_at).slice(0, 10),
     };
   });
   const names = new Set(fromDb.map((t) => t.author.trim().toLowerCase()));
@@ -69,6 +78,7 @@ export function toTestimonials(published: PublishedReview[]): Testimonial[] {
     avatarUrl: r.avatar,
     source: "facebook",
     reply: "",
+    date: isoMonth(r.month),
   }));
   // Faces first: a card with a real picture reads as a real person.
   return [...fromDb, ...fallback].sort((a, b) => Number(Boolean(b.avatarUrl)) - Number(Boolean(a.avatarUrl)));
@@ -278,6 +288,119 @@ export function TestimonialSection({ testimonials, tone = "light" }: { testimoni
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+type ReviewOrder = "top" | "new" | "old";
+type ReviewFilter = "all" | "5" | "4" | "recommends";
+
+/**
+ * The listing page's reviews, as Malaya sets them: a heading and the score,
+ * two quiet filters, then one row per guest (face, name, month, where it came
+ * from, the verdict, the words) with a hairline between, four at first.
+ */
+export function GuestReviewList({ testimonials }: { testimonials: Testimonial[] }) {
+  const [filter, setFilter] = useState<ReviewFilter>("all");
+  const [order, setOrder] = useState<ReviewOrder>("top");
+  const [all, setAll] = useState(false);
+  const scores = platformScores(testimonials);
+  const rated = testimonials.filter((t) => t.rating != null);
+  const avg = rated.length ? rated.reduce((s, t) => s + (t.rating ?? 0), 0) / rated.length : null;
+  const recommendPct = (() => {
+    const v = testimonials.filter((t) => t.rating == null && t.recommends != null);
+    return v.length ? Math.round((v.filter((t) => t.recommends).length / v.length) * 100) : null;
+  })();
+  const rank = (t: Testimonial) => (t.avatarUrl ? 2 : 0) + Math.min(t.body.length, 400) / 200 + (t.rating ?? (t.recommends ? 5 : 0));
+  const list = testimonials
+    .filter((t) =>
+      filter === "all" ? true : filter === "recommends" ? t.rating == null && t.recommends : (t.rating ?? 0) >= Number(filter),
+    )
+    .slice()
+    .sort((a, b) => (order === "top" ? rank(b) - rank(a) : order === "new" ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)));
+  const shown = all ? list : list.slice(0, 4);
+  const pill =
+    "h-9 cursor-pointer appearance-none rounded-full border-0 bg-transparent py-0 pr-8 pl-4 text-sm font-medium text-ink focus:outline-none";
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="site-display text-brand-heading text-2xl leading-tight">Guest reviews</h2>
+          <p className="mt-1 text-sm text-ink-muted">What previous guests said about their stay.</p>
+        </div>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-soft">
+          {avg != null && (
+            <span className="inline-flex items-center gap-1">
+              <Star className="size-4 fill-brand-700 text-brand-700" /> <b className="text-ink">{avg.toFixed(2)}</b> · {rated.length} rated
+            </span>
+          )}
+          {recommendPct != null && (
+            <span className="inline-flex items-center gap-1">
+              <ThumbsUp className="size-4 text-brand-700" /> <b className="text-ink">{recommendPct}% recommend</b> · {testimonials.length} reviews
+            </span>
+          )}
+        </p>
+      </div>
+
+      <div className="mt-5 inline-flex divide-x divide-sand-300 rounded-full border border-sand-300 bg-white">
+        <select value={filter} onChange={(e) => setFilter(e.target.value as ReviewFilter)} aria-label="Filter reviews" className={pill}>
+          <option value="all">All ratings</option>
+          {rated.length > 0 && <option value="5">5 stars</option>}
+          {rated.length > 0 && <option value="4">4 stars & up</option>}
+          {scores.some((p) => !p.stars) && <option value="recommends">Recommends</option>}
+        </select>
+        <select value={order} onChange={(e) => setOrder(e.target.value as ReviewOrder)} aria-label="Sort reviews" className={pill}>
+          <option value="top">Top reviews</option>
+          <option value="new">Newest first</option>
+          <option value="old">Oldest first</option>
+        </select>
+      </div>
+
+      {shown.length === 0 ? (
+        <p className="mt-6 text-sm text-ink-muted">No reviews match that.</p>
+      ) : (
+        <ul className="mt-4 divide-y divide-sand-200">
+          {shown.map((t) => (
+            <li key={t.id} className="py-5">
+              <div className="flex items-start gap-3">
+                <ReviewerAvatar name={t.author} url={t.avatarUrl} className="size-11" />
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <span className="font-semibold text-ink">{t.author}</span>
+                    <span className="text-xs text-ink-muted">{t.month}</span>
+                    {t.source !== "website" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-sand-300 px-2 py-0.5 text-[11px] text-ink-soft">
+                        <SourceLogo source={t.source} className="size-3.5" /> {REVIEW_SOURCE_LABEL[t.source]} review
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">Stayed with us</span>
+                    )}
+                  </p>
+                  <Verdict rating={t.rating} recommends={t.recommends} className="mt-1" />
+                </div>
+              </div>
+              <p className="mt-3 text-[15px] leading-relaxed whitespace-pre-line text-ink-soft">{t.body}</p>
+              {t.reply && (
+                <p className="mt-3 rounded-xl bg-linen/70 px-4 py-3 text-sm text-ink-soft">
+                  <span className="font-semibold text-ink">Response from Vivienda: </span>
+                  {t.reply}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {list.length > 4 && (
+        <button
+          type="button"
+          onClick={() => setAll((v) => !v)}
+          className="mt-1 cursor-pointer text-sm font-semibold text-ink underline-offset-4 hover:underline"
+        >
+          {all ? "Show fewer" : `Show all ${list.length} reviews`}
+        </button>
+      )}
     </div>
   );
 }

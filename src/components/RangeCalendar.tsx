@@ -93,12 +93,12 @@ export function RangeCalendar({
           type="button"
           onClick={() => move(-1)}
           disabled={!canGoBack}
-          className="rounded-md p-1.5 text-ink-soft hover:bg-sand-100 disabled:opacity-30"
+          className="grid size-9 cursor-pointer place-items-center rounded-full border border-sand-200 text-ink-soft hover:bg-sand-100 disabled:cursor-default disabled:opacity-30"
           aria-label="Previous month"
         >
-          <ChevronLeft className="size-5" />
+          <ChevronLeft className="size-4" />
         </button>
-        <div className="flex flex-1 justify-around text-sm font-semibold text-ink">
+        <div className="flex flex-1 justify-around font-display text-base text-ink">
           {Array.from({ length: months }, (_, i) => (
             <span key={i} className={cn(i > 0 && "hidden sm:inline")}>
               {format(addMonths(first, i), "MMMM yyyy")}
@@ -108,13 +108,13 @@ export function RangeCalendar({
         <button
           type="button"
           onClick={() => move(1)}
-          className="rounded-md p-1.5 text-ink-soft hover:bg-sand-100"
+          className="grid size-9 cursor-pointer place-items-center rounded-full border border-sand-200 text-ink-soft hover:bg-sand-100"
           aria-label="Next month"
         >
-          <ChevronRight className="size-5" />
+          <ChevronRight className="size-4" />
         </button>
       </div>
-      <div className={cn("grid gap-6", months === 2 && "sm:grid-cols-2")}>
+      <div className={cn("grid gap-8", months === 2 && "sm:grid-cols-2")}>
         {Array.from({ length: months }, (_, i) => (
           <Month
             key={i}
@@ -172,14 +172,14 @@ function Month({
 
   return (
     <div className={className}>
-      <div className="grid grid-cols-7 text-center text-xs font-medium text-ink-muted">
+      <div className="mb-1 grid grid-cols-7 text-center text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
         {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-          <div key={d} className="py-1">
+          <div key={d} className="py-1.5">
             {d}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7" onMouseLeave={() => setHover(null)}>
+      <div className="grid grid-cols-7 gap-y-1" onMouseLeave={() => setHover(null)}>
         {days.map((d) => {
           const iso = isoDate(d);
           if (!isSameMonth(d, month)) return <div key={iso} />;
@@ -193,6 +193,10 @@ function Month({
           const isEnd = iso === rangeEnd;
           const inRange = Boolean(checkIn && rangeEnd && iso > checkIn && iso < rangeEnd);
           const note = !disabled && dayNote ? dayNote(iso) : null;
+          const picked = isStart || isEnd;
+          // The band joining check-in to check-out runs behind the circles:
+          // half a cell from the start, half to the end, full across the nights.
+          const band = inRange ? "inset-x-0" : isStart && rangeEnd ? "left-1/2 right-0" : isEnd && checkIn ? "left-0 right-1/2" : null;
           return (
             <button
               key={iso}
@@ -200,29 +204,29 @@ function Month({
               disabled={disabled}
               onClick={() => onPick(iso)}
               onMouseEnter={() => setHover(iso)}
-              aria-pressed={isStart || isEnd}
+              aria-pressed={picked}
               aria-label={`${format(d, "EEEE, MMMM d")}${taken ? ", unavailable" : ""}`}
-              className={cn(
-                "relative flex h-12 flex-col items-center justify-center text-sm transition-colors",
-                inRange && "bg-brand-50",
-                isStart && rangeEnd && "rounded-l-lg",
-                isEnd && "rounded-r-lg",
-                disabled ? "cursor-not-allowed text-ink-muted/50" : "text-ink hover:bg-sand-100",
-                taken && !asCheckout && !past && "line-through decoration-ink-muted/60",
-                (isStart || isEnd) && "rounded-lg bg-brand-700 text-sand-50 hover:bg-brand-700",
-              )}
+              className={cn("group relative flex h-12 items-center justify-center", disabled ? "cursor-not-allowed" : "cursor-pointer")}
             >
-              <span className="leading-none">{format(d, "d")}</span>
-              {note && (
-                <span
-                  className={cn(
-                    "mt-0.5 text-[10px] leading-none",
-                    isStart || isEnd ? "text-sand-100" : "text-ink-muted",
-                  )}
-                >
-                  {note}
-                </span>
-              )}
+              {band && <span aria-hidden className={cn("absolute inset-y-1 bg-brand-100/70", band)} />}
+              <span
+                className={cn(
+                  "relative flex size-11 flex-col items-center justify-center rounded-full text-sm transition-colors",
+                  picked
+                    ? "bg-brand-700 font-semibold text-sand-50 shadow-level-2"
+                    : disabled
+                      ? "text-ink-muted/45"
+                      : "text-ink group-hover:ring-1 group-hover:ring-ink/70",
+                  taken && !asCheckout && !past && "line-through decoration-ink-muted/50",
+                )}
+              >
+                <span className="leading-none">{format(d, "d")}</span>
+                {note && (
+                  <span className={cn("mt-1 text-[9px] leading-none tracking-tight", picked ? "text-sand-100/90" : "text-ink-muted/80")}>
+                    {note}
+                  </span>
+                )}
+              </span>
             </button>
           );
         })}
