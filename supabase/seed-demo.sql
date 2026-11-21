@@ -9,9 +9,23 @@
 -- Every sample guest uses an @example.com email, which is how the cleanup
 -- at the bottom finds them. Run it again any time; it clears the old demo
 -- rows first.
+--
+-- Section 8 also makes two demo LOGINS (run after schema.sql):
+--   Admin  admin@gmail.com / password   opens /admin
+--   Guest  user@gmail.com  / password   has trips, a review and a chat
+-- These are for a demo database only. Change or delete them before going live.
 -- ─────────────────────────────────────────────────────────────
 
 -- 0. Clear a previous demo run. (Their conversations, messages and reviews go with the guests.)
+-- The demo guest login keeps its account; only its trips and chat are cleared.
+delete from public.payments where booking_id in (
+  select b.id from public.bookings b join public.guests g on g.id = b.guest_id where lower(g.email) = 'user@gmail.com');
+delete from public.bookings where guest_id in (select id from public.guests where lower(email) = 'user@gmail.com');
+do $$ begin
+  if to_regclass('public.conversations') is not null then
+    delete from public.conversations where guest_id in (select id from public.guests where lower(email) = 'user@gmail.com');
+  end if;
+end $$;
 delete from public.payments where booking_id in (
   select b.id from public.bookings b join public.guests g on g.id = b.guest_id where g.email like '%@example.com');
 delete from public.bookings where guest_id in (select id from public.guests where email like '%@example.com');
@@ -171,10 +185,111 @@ begin
   from (values
     ('angela.mercado@example.com', 5, 'Perfect for my daughter''s birthday! The pool was clean, the place was spacious and the caretaker was so helpful the whole time.', 'published', 'Thank you, Angela! Happy birthday again to your daughter.', 70),
     ('trisha.lim@example.com',     5, 'Second time here and it''s still our favorite private resort near Lipa. Super relaxing and very private.', 'published', '', 10),
-    ('bea.santos@example.com',     4, 'Nice place and very accommodating owner. The road going in is a bit narrow at night, but worth it.', 'pending', '', 2)
+    ('bea.santos@example.com',     4, 'Nice place and very accommodating owner. The road going in is a bit narrow at night, but worth it.', 'pending', '', 2),
+    ('ramon.deleon@example.com',   5, 'Sulit for a big family. Malinis ang pool, ang ganda ng A-frame at gabi, at ang bait ng caretaker. Babalik kami!', 'published', 'Salamat po, Ramon! See you again.', 55),
+    ('paolo.reyes@example.com',    5, 'We held our company outing here and everything went smoothly. Plenty of space for 28 people, the pavilion was perfect for our program.', 'published', '', 40),
+    ('marco.dizon@example.com',    4, 'Very private and relaxing. Bring your own snacks since the nearest store is a short drive away.', 'published', '', 28)
   ) as x(email, rating, body, status, reply, ago)
   join public.guests g on g.email = x.email
   join lateral (select * from public.bookings where guest_id = g.id and status = 'checked_out' order by check_in desc limit 1) b on true;
+end $$;
+
+-- 8. Two demo logins, so you can show both sides.
+--   admin@gmail.com / password  is an admin (listed in public.admins).
+--   user@gmail.com  / password  is a guest with a past stay and a review,
+--                               an upcoming trip half paid, and a chat.
+-- Safe to run again: existing accounts get their password reset to "password".
+do $$
+declare
+  acct record;
+  uid uuid;
+  gid uuid;
+  u public.units;
+  q record;
+  past_id uuid;
+  next_id uuid;
+  cid uuid;
+begin
+  for acct in select * from (values
+    ('admin@gmail.com', 'Vivienda Admin'),
+    ('user@gmail.com',  'Bianca Reyes')
+  ) as v(email, name) loop
+    select id into uid from auth.users where lower(email) = acct.email;
+    if uid is null then
+      uid := gen_random_uuid();
+      insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+                              raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+                              confirmation_token, email_change, email_change_token_new, recovery_token)
+      values ('00000000-0000-0000-0000-000000000000', uid, 'authenticated', 'authenticated', acct.email,
+              extensions.crypt('password', extensions.gen_salt('bf')), now(),
+              '{"provider":"email","providers":["email"]}'::jsonb,
+              jsonb_build_object('full_name', acct.name), now(), now(), '', '', '', '');
+      insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+      values (gen_random_uuid(), uid, uid::text,
+              jsonb_build_object('sub', uid::text, 'email', acct.email, 'email_verified', true),
+              'email', now(), now(), now());
+    else
+      update auth.users
+         set encrypted_password = extensions.crypt('password', extensions.gen_salt('bf')),
+             email_confirmed_at = coalesce(email_confirmed_at, now())
+       where id = uid;
+    end if;
+  end loop;
+
+  -- The admin.
+  insert into public.admins (email) values ('admin@gmail.com') on conflict do nothing;
+
+  -- The guest: their record, linked to the login.
+  select id into uid from auth.users where lower(email) = 'user@gmail.com';
+  select id into gid from public.guests where lower(email) = 'user@gmail.com';
+  if gid is null then
+    insert into public.guests (full_name, email, phone, notes, user_id)
+    values ('Bianca Reyes', 'user@gmail.com', '0917 555 0199', 'Demo guest account.', uid)
+    returning id into gid;
+  else
+    update public.guests set user_id = uid, full_name = 'Bianca Reyes' where id = gid;
+  end if;
+
+  select * into u from public.units where slug = 'vivienda';
+
+  -- A stay last month, paid in full, with a published review.
+  select * into q from public.quote_stay(u.id, current_date - 34, current_date - 33, 14);
+  insert into public.bookings (unit_id, guest_id, check_in, check_out, guests_count, status, source,
+                               subtotal, total, payment_method, special_requests, waiver_accepted_at, created_at)
+  values (u.id, gid, current_date - 34, current_date - 33, 14, 'checked_out', 'website',
+          q.total, q.total, 'gcash', 'Barkada weekend', now(), now() - interval '50 days')
+  returning id into past_id;
+  insert into public.payments (booking_id, amount, method, paid_on, reference) values
+    (past_id, round(q.total * 0.5), 'gcash', current_date - 45, 'DEMO-BR1'),
+    (past_id, q.total - round(q.total * 0.5), 'gcash', current_date - 34, 'DEMO-BR2');
+  insert into public.reviews (booking_id, guest_id, rating, body, status, created_at)
+  values (past_id, gid, 5, 'Our barkada had the best weekend! The pool at night with the string lights was unreal. Super clean and the caretaker was so kind.', 'published', now() - interval '30 days');
+
+  -- A trip in ten days, confirmed, half paid.
+  select * into q from public.quote_stay(u.id, current_date + 10, current_date + 12, 18);
+  insert into public.bookings (unit_id, guest_id, check_in, check_out, guests_count, status, source,
+                               subtotal, total, payment_method, special_requests, waiver_accepted_at, created_at)
+  values (u.id, gid, current_date + 10, current_date + 12, 18, 'confirmed', 'website',
+          q.total, q.total, 'gcash', 'Birthday dinner on the first night', now(), now() - interval '6 days')
+  returning id into next_id;
+  insert into public.payments (booking_id, amount, method, paid_on, reference)
+  values (next_id, round(q.total * 0.5), 'gcash', current_date - 6, 'DEMO-BR3');
+
+  -- A short chat about the upcoming trip, answered.
+  if to_regclass('public.conversations') is not null then
+    insert into public.conversations (guest_id) values (gid) returning id into cid;
+    insert into public.messages (conversation_id, author, author_name, kind, body, booking_id, sent_at) values
+      (cid, 'guest', 'Bianca Reyes', 'booking', 'Requested to book for 18 guests.', next_id, now() - interval '6 days'),
+      (cid, 'host', 'Vivienda', 'message', 'Hi Bianca! Your booking is confirmed. We received your downpayment, salamat!', null, now() - interval '5 days'),
+      (cid, 'guest', 'Bianca Reyes', 'message', 'Yay! Can we use the griller for the birthday dinner?', null, now() - interval '1 day'),
+      (cid, 'host', 'Vivienda', 'message', 'Of course! The BBQ griller and charcoal area are all yours. Just bring the charcoal.', null, now() - interval '22 hours');
+    update public.conversations
+       set guest_seen_at = now() - interval '21 hours',
+           last_message_at = now() - interval '22 hours',
+           last_message_preview = 'Of course! The BBQ griller and charcoal area are all yours.',
+           last_author = 'host'
+     where id = cid;
+  end if;
 end $$;
 
 -- ─────────────────────────────────────────────────────────────
