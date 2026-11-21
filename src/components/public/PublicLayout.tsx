@@ -6,7 +6,6 @@ import { SITE } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import { Spinner } from "../ui";
 import { GuestUiProvider } from "./GuestContext";
-import { Skyline } from "./Skyline";
 import { AccountMenu, BottomNav, MessagesFab, useHideOnScroll } from "./GuestNav";
 
 /** The logo mark beside the name, set like Malaya's wordmark: tracked display type, a thin line beneath. */
@@ -139,11 +138,9 @@ function PublicShell() {
       </main>
 
       {!onMessages && (
-      <footer id="contact" className="mt-10 scroll-mt-4">
-        {/* The resort in silhouette, rising out of the page into the dark footer. */}
-        <Skyline />
+      <footer id="contact" className="scroll-mt-4">
         <div className="bg-espresso text-sand-50">
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-6 pb-14 sm:grid-cols-2 sm:px-8 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-14 pb-14 sm:grid-cols-2 sm:px-8 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
           <div>
             <span className="inline-flex items-center gap-3">
               <img src="/images/logo-192.png" alt="" className="size-14 shrink-0 rounded-full ring-2 ring-white/15" />
