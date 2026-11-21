@@ -207,12 +207,17 @@
    Each row holds its photos twice, so moving it by half loops without a seam. */
 .drift {
   animation: drift var(--drift, 80s) linear infinite;
+  will-change: transform;
 }
 .drift-reverse {
   animation-direction: reverse;
 }
-.drift-group:hover .drift {
-  animation-play-state: paused;
+/* Paused under a mouse only: a phone keeps :hover after a tap, which used to
+   leave the rows frozen on iPhones. */
+@media (hover: hover) and (pointer: fine) {
+  .drift-group:hover .drift {
+    animation-play-state: paused;
+  }
 }
 @keyframes drift {
   to {
