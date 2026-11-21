@@ -1,17 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
 import { ArrowRight, BedDouble, Grid3X3, Sparkles } from "lucide-react";
-import { supabase } from "../../lib/supabase";
-import { useSettings, useUnavailableNights, useUnits } from "../../lib/queries";
-import { isoDate, money, nightsBetween, prettyDate } from "../../lib/format";
+import { useSettings, useUnits } from "../../lib/queries";
+import { isoDate, money, prettyDate } from "../../lib/format";
 import { GALLERY, LOCATION_LABEL, PHOTOS, PROMO, RECOMMEND, SITE } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import { EmptyState } from "../../components/ui";
-import { SearchPill, type StaySearch } from "../../components/public/SearchPill";
 import { ReviewerAvatar, SourceLogo, TestimonialSection, toTestimonials } from "../../components/public/Reviews";
 import { usePublishedReviews } from "../../lib/guest";
-import { AmenityGrid, DriftGallery, RecentStays, StayFeature } from "../../components/public/HomeSections";
+import { AmenityGrid, BookBar, DriftGallery, RecentStays, StayFeature } from "../../components/public/HomeSections";
 import type { Unit } from "../../lib/types";
 
 /**
@@ -31,74 +28,11 @@ export default function Home() {
   const { data: published = [] } = usePublishedReviews();
   const testimonials = useMemo(() => toTestimonials(published), [published]);
   const { hash } = useLocation();
-  const [params, setParams] = useSearchParams();
   const [photosOpen, setPhotosOpen] = useState(false);
   // Vivienda is one resort, booked whole. It is the first active listing.
   const resort = (units ?? []).find((u) => u.is_active);
-  const { data: taken } = useUnavailableNights(resort?.id, isoDate(new Date()), isoDate(new Date(Date.now() + 400 * 86_400_000)));
-
-  // The search lives in the URL, so a result can be shared or come back to.
-  const applied: StaySearch = {
-    checkIn: params.get("in") ?? "",
-    checkOut: params.get("out") ?? "",
-    guests: Number(params.get("guests")) || 2,
-    children: Number(params.get("kids")) || 0,
-    pets: Number(params.get("pets")) || 0,
-  };
-  const [draft, setDraft] = useState<StaySearch>(applied);
-  const searching = Boolean(applied.checkIn && applied.checkOut && applied.checkOut > applied.checkIn);
-  const nights = searching ? nightsBetween(applied.checkIn, applied.checkOut) : 0;
-
-  function runSearch() {
-    const next = new URLSearchParams();
-    if (draft.checkIn && draft.checkOut) {
-      next.set("in", draft.checkIn);
-      next.set("out", draft.checkOut);
-    }
-    next.set("guests", String(draft.guests));
-    if (draft.children) next.set("kids", String(draft.children));
-    if (draft.pets) next.set("pets", String(draft.pets));
-    setParams(next, { replace: true });
-    document.getElementById("stay")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  // For a dated search: are those nights free, and what does the stay cost.
-  const { data: check, isFetching: checking } = useQuery({
-    queryKey: ["search", resort?.id, applied.checkIn, applied.checkOut, applied.guests, applied.pets],
-    enabled: Boolean(resort && searching),
-    queryFn: async () => {
-      const u = resort!;
-      const lastNight = isoDate(new Date(new Date(`${applied.checkOut}T00:00:00`).getTime() - 86_400_000));
-      const [taken, quote] = await Promise.all([
-        supabase.rpc("unavailable_nights", { p_unit: u.id, p_from: applied.checkIn, p_to: lastNight }),
-        supabase.rpc("quote_stay", {
-          p_unit: u.id,
-          p_check_in: applied.checkIn,
-          p_check_out: applied.checkOut,
-          p_guests: Math.min(applied.guests, u.max_guests),
-          p_pets: Math.min(applied.pets, u.max_pets),
-        }),
-      ]);
-      if (taken.error) throw taken.error;
-      if (quote.error) throw quote.error;
-      return {
-        free: ((taken.data ?? []) as string[]).length === 0,
-        total: Number((quote.data as { total: number }[])[0]?.total ?? 0),
-      };
-    },
-  });
-
-  const stayHref = (u: Unit) => {
-    const q = new URLSearchParams();
-    if (searching) {
-      q.set("in", applied.checkIn);
-      q.set("out", applied.checkOut);
-    }
-    q.set("guests", String(Math.min(applied.guests, u.max_guests)));
-    if (applied.children) q.set("kids", String(Math.min(applied.children, applied.guests - 1)));
-    if (applied.pets && u.max_pets) q.set("pets", String(Math.min(applied.pets, u.max_pets)));
-    return `/stay/${u.slug}?${q}`;
-  };
+  // One place, booked whole: dates and guests are picked on its own page.
+  const stayHref = (u: Unit) => `/stay/${u.slug}`;
 
   useEffect(() => {
     if (hash) document.querySelector(hash)?.scrollIntoView({ behavior: "smooth" });
@@ -111,20 +45,10 @@ export default function Home() {
     <>
       <Hero resort={resort} testimonials={testimonials} onPhotos={() => setPhotosOpen(true)} />
 
-      {/* The search rides up onto the hero's lower edge, then sticks to the top
-          as the page scrolls. Outside the hero: sticky is inert in overflow-hidden. */}
-      <div className="pointer-events-none sticky top-0 z-20 -mb-[76px] px-4 pt-3 pb-3 sm:-mt-16 sm:-mb-14 sm:px-8 [&>*]:pointer-events-auto">
-        <SearchPill
-          value={draft}
-          onChange={setDraft}
-          onSearch={runSearch}
-          limits={{
-            max_guests: Math.max(resort?.max_guests ?? 2, 2),
-            max_pets: resort?.max_pets ?? 0,
-            pet_fee: resort?.pet_fee ?? 0,
-          }}
-          unavailable={taken}
-        />
+      {/* There is one place to book, so no search: a slim bar with the price and
+          one button, riding the hero's lower edge, then sticking to the top. */}
+      <div className="pointer-events-none sticky top-0 z-20 -mb-[80px] px-4 pt-3 pb-3 sm:-mt-16 sm:-mb-16 sm:px-8 [&>*]:pointer-events-auto">
+        {resort && <BookBar unit={resort} href={stayHref(resort)} />}
       </div>
 
       {/* ── The stay, on linen ── */}
@@ -142,22 +66,7 @@ export default function Home() {
               about={s?.about}
               unit={resort}
               href={stayHref(resort)}
-              search={
-                searching
-                  ? {
-                      label: `${prettyDate(applied.checkIn, "MMM d")} – ${prettyDate(applied.checkOut, "MMM d")}`,
-                      nights,
-                      loading: checking,
-                      free: check?.free ?? null,
-                      total: check?.total ?? null,
-                      tooMany: applied.guests > resort.max_guests,
-                      onClear: () => {
-                        setDraft({ ...applied, checkIn: "", checkOut: "" });
-                        setParams({}, { replace: true });
-                      },
-                    }
-                  : null
-              }
+              search={null}
             />
           )}
 

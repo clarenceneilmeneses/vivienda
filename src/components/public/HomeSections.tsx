@@ -342,3 +342,31 @@ export function RecentStays({ heading }: { heading: ReactNode }) {
     </section>
   );
 }
+
+/**
+ * In place of a search: there is one place, so the bar says what it is, what
+ * it costs, and takes you to book it.
+ */
+export function BookBar({ unit, href }: { unit: Unit; href: string }) {
+  return (
+    <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-full border border-sand-200/60 bg-white p-1.5 pl-2 shadow-level-3">
+      <img src="/images/logo-192.png" alt="" className="size-11 shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-ink">{unit.name}</p>
+        <p className="truncate text-xs text-ink-muted">
+          <span className="font-semibold text-ink">{money(unit.base_rate, true)}</span> / night
+          <span className="hidden sm:inline">
+            {" "}
+            · Up to {unit.max_guests} guests · {RECOMMEND.percent}% recommend
+          </span>
+        </p>
+      </div>
+      <Link
+        to={href}
+        className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-brand-700 px-5 text-sm font-semibold text-sand-50 shadow-level-1 transition-colors hover:bg-brand-700/90 sm:px-7"
+      >
+        Book now <ArrowRight className="size-4" />
+      </Link>
+    </div>
+  );
+}
