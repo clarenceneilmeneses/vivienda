@@ -25,6 +25,7 @@ const BookingPage = lazy(() => import("./pages/admin/BookingPage"));
 const Calendar = lazy(() => import("./pages/admin/Calendar"));
 const Guests = lazy(() => import("./pages/admin/Guests"));
 const Finance = lazy(() => import("./pages/admin/Finance"));
+const Reports = lazy(() => import("./pages/admin/Reports"));
 const Units = lazy(() => import("./pages/admin/Units"));
 const GeneralSettings = lazy(() => import("./pages/admin/settings/General"));
 const BookingRules = lazy(() => import("./pages/admin/settings/BookingRules"));
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="calendar" element={<Calendar />} />
           <Route path="guests" element={<Guests />} />
           <Route path="finance" element={<Finance />} />
+          <Route path="reports" element={<Reports />} />
           <Route path="units" element={<Units />} />
           <Route path="settings" element={<GeneralSettings />} />
           <Route path="settings/booking-rules" element={<BookingRules />} />

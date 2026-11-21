@@ -23,6 +23,7 @@ import {
   UserRound,
   Users,
   Wallet,
+  FileText,
   X,
   Zap,
   type LucideIcon,
@@ -81,7 +82,13 @@ const NAV: { label: string; tabs: Tab[] }[] = [
       { to: "/admin/reviews", label: "Reviews", icon: Star, badge: "reviews" },
     ],
   },
-  { label: "Money", tabs: [{ to: "/admin/finance", label: "Finance", icon: Wallet }] },
+  {
+    label: "Money",
+    tabs: [
+      { to: "/admin/finance", label: "Finance", icon: Wallet },
+      { to: "/admin/reports", label: "Reports", icon: FileText },
+    ],
+  },
   {
     label: "Property",
     tabs: [

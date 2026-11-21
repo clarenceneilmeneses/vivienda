@@ -6,6 +6,8 @@ import { isoDate, money } from "../../lib/format";
 import { sendBookingEmail } from "../../lib/email";
 import { METHOD_LABEL, type BookingSummary, type PaymentMethod } from "../../lib/types";
 import { Button, ErrorBox, Field, Input, Modal, Select } from "../ui";
+import { ReceiptField } from "./ReceiptField";
+import { receiptColumnMissing, removeReceipt } from "../../lib/receipts";
 
 export function PaymentForm({
   booking,
@@ -29,6 +31,8 @@ function Inner({ booking, onClose }: { booking: BookingSummary; onClose: () => v
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [emailReceipt, setEmailReceipt] = useState(Boolean(booking.guest_email));
+  const [receipt, setReceipt] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,9 +50,11 @@ function Inner({ booking, onClose }: { booking: BookingSummary; onClose: () => v
       paid_on: paidOn,
       reference: reference.trim(),
       notes: notes.trim(),
+      // Only sent when there is one, so recording still works before the receipts SQL is run.
+      ...(receipt ? { receipt_path: receipt } : {}),
     });
     setSaving(false);
-    if (error) return setError(errorMessage(error));
+    if (error) return setError(receiptColumnMissing(errorMessage(error)));
     await qc.invalidateQueries();
     toast.success(kind === "refund" ? "Refund recorded" : `${money(amt)} recorded`);
     if (kind === "payment" && emailReceipt) {
@@ -62,16 +68,25 @@ function Inner({ booking, onClose }: { booking: BookingSummary; onClose: () => v
   return (
     <Modal
       open
-      onClose={onClose}
+      onClose={() => {
+        removeReceipt(receipt); // uploaded but never saved
+        onClose();
+      }}
       size="sm"
       title={`Record ${kind} · ${booking.ref}`}
       description={`Balance: ${money(booking.balance)} of ${money(booking.total)}`}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              removeReceipt(receipt);
+              onClose();
+            }}
+          >
             Cancel
           </Button>
-          <Button type="submit" form="payment-form" loading={saving}>
+          <Button type="submit" form="payment-form" loading={saving} disabled={uploading}>
             Save
           </Button>
         </>
@@ -125,6 +140,12 @@ function Inner({ booking, onClose }: { booking: BookingSummary; onClose: () => v
         <Field label="Note" optional>
           {(id) => <Input id={id} value={notes} onChange={(e) => setNotes(e.target.value)} />}
         </Field>
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium text-ink">
+            Receipt <span className="font-normal text-ink-muted">(optional)</span>
+          </p>
+          <ReceiptField value={receipt} onChange={setReceipt} folder="payments" onBusy={setUploading} />
+        </div>
         {kind === "payment" && booking.guest_email && (
           <label className="flex items-center gap-2 text-sm">
             <input

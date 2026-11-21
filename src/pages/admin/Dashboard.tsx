@@ -176,7 +176,7 @@ export default function Dashboard() {
 
         <p className="eyebrow mb-2">Financial KPI</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
-          <Tile label="Collected" value={money(collected, true)} to="/admin/finance" formula="Payments received in these dates, less refunds." />
+          <Tile label="Collected" value={money(collected, true)} to="/admin/finance?tab=payments" formula="Payments received in these dates, less refunds." />
           <Tile
             label="Booking value"
             value={money(m.bookingValue, true)}
@@ -189,7 +189,7 @@ export default function Dashboard() {
             value={money(m.receivables, true)}
             sub={m.receivablesCount ? plural(m.receivablesCount, "booking") : "All paid"}
             tone={m.receivables > 0 ? -1 : undefined}
-            to="/admin/finance"
+            to="/admin/finance?tab=unpaid"
             formula="Balances still owed on confirmed, in-house and past stays, any dates."
           />
           <Tile
@@ -198,8 +198,8 @@ export default function Dashboard() {
             sub="stays in these dates"
             formula="What the nights in these dates are worth once paid in full: each stay's total spread over its nights."
           />
-          <Tile label="Expenses" value={money(expenses, true)} to="/admin/finance" formula="Expenses recorded in these dates." />
-          <Tile label="Net cash" value={money(netCash, true)} tone={netCash} to="/admin/finance" formula="Collected − expenses." />
+          <Tile label="Expenses" value={money(expenses, true)} to="/admin/finance?tab=expenses" formula="Expenses recorded in these dates." />
+          <Tile label="Net cash" value={money(netCash, true)} tone={netCash} to="/admin/finance?tab=pnl" formula="Collected − expenses." />
           <Tile label="Projected net" value={money(projectedNet, true)} tone={projectedNet} formula="Projected revenue − expenses." />
         </div>
 

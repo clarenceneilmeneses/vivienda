@@ -112,6 +112,8 @@ export interface Payment {
   paid_on: string;
   reference: string;
   notes: string;
+  /** A photo or PDF in the private 'receipts' bucket. */
+  receipt_path?: string | null;
   created_at: string;
 }
 
@@ -123,6 +125,8 @@ export interface Expense {
   amount: number;
   vendor: string;
   notes: string;
+  /** A photo or PDF in the private 'receipts' bucket. */
+  receipt_path?: string | null;
   created_at: string;
 }
 

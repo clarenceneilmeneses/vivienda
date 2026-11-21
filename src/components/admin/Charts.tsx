@@ -1,11 +1,14 @@
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { compactMoney, money } from "../../lib/format";
 
 // Malaya's single-hue approach: one brown, told apart by lightness, which
 // survives every kind of colour blindness. Income is the dark end.
 export const SERIES = {
   income: "#7b4821",
-  expenses: "#c19c7f",
+  // Darkened 2026-11-21 to clear 3:1 against the card (was #c19c7f, 2.46:1).
+  expenses: "#b48a66",
+  /** A loss: the terra of the brand, always with a minus sign beside it. */
+  loss: "#a4471f",
 } as const;
 
 export interface MonthPoint {
@@ -118,5 +121,82 @@ export function ShareBars({
         </li>
       ))}
     </ul>
+  );
+}
+
+function SimpleTip({
+  active,
+  payload,
+  label,
+  name,
+}: {
+  active?: boolean;
+  payload?: { value?: number | string }[];
+  label?: string | number;
+  name: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const v = Number(payload[0].value ?? 0);
+  return (
+    <div className="rounded-xl border border-sand-200 bg-white px-3 py-2 text-xs shadow-level-3">
+      <p className="mb-0.5 font-semibold text-ink">{label}</p>
+      <p className="flex justify-between gap-4 text-ink-soft">
+        <span>{name}</span>
+        <span className="tabular-nums text-ink">{money(v)}</span>
+      </p>
+    </div>
+  );
+}
+
+/** Net profit per month: one bar each, brown above zero, terra below, zero line drawn. */
+export function NetBars({ data }: { data: { label: string; net: number }[] }) {
+  return (
+    <div className="h-56">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} barCategoryGap="28%" margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke="#e9e7e2" />
+          <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} />
+          <YAxis tick={axis} tickLine={false} axisLine={false} width={52} tickFormatter={(v: number) => compactMoney(v)} />
+          <ReferenceLine y={0} stroke="#bdb9b0" />
+          <Tooltip content={<SimpleTip name="Net profit" />} cursor={{ fill: "rgba(123,72,33,0.06)" }} />
+          <Bar dataKey="net" maxBarSize={28} isAnimationActive={false} radius={4}>
+            {data.map((d) => (
+              <Cell key={d.label} fill={d.net < 0 ? SERIES.loss : SERIES.income} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Money in per day across the period: a single soft area with a crosshair tooltip. */
+export function DailyArea({ data, name = "Collected" }: { data: { label: string; value: number }[]; name?: string }) {
+  return (
+    <div className="h-56">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="dailyFill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor={SERIES.income} stopOpacity={0.22} />
+              <stop offset="100%" stopColor={SERIES.income} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke="#e9e7e2" />
+          <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} />
+          <YAxis tick={axis} tickLine={false} axisLine={false} width={52} tickFormatter={(v: number) => compactMoney(v)} />
+          <Tooltip content={<SimpleTip name={name} />} cursor={{ stroke: "#bdb9b0", strokeWidth: 1 }} />
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke={SERIES.income}
+            strokeWidth={2}
+            fill="url(#dailyFill)"
+            isAnimationActive={false}
+            activeDot={{ r: 4, stroke: "#fff", strokeWidth: 2 }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

@@ -189,6 +189,12 @@ create table if not exists public.expenses (
 );
 create index if not exists expenses_spent_on_idx on public.expenses (spent_on);
 
+-- Receipts on the books (2026-11-21): a photo or PDF of the bill, or of the
+-- guest's payment, kept in the private 'receipts' bucket under expenses/ and
+-- payments/. Safe to run again.
+alter table public.expenses add column if not exists receipt_path text;
+alter table public.payments add column if not exists receipt_path text;
+
 create table if not exists public.email_log (
   id uuid primary key default gen_random_uuid(),
   booking_id uuid references public.bookings(id) on delete cascade,
