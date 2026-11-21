@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, Eye, EyeOff, MessageSquareReply, Pencil, Plus, Star, ThumbsUp, Trash2 } from "lucide-react";
+import { Camera, Eye, FileUp, EyeOff, MessageSquareReply, Pencil, Plus, Star, ThumbsUp, Trash2 } from "lucide-react";
 import { errorMessage, supabase } from "../../lib/supabase";
 import { isoDate, prettyDate, stayRange } from "../../lib/format";
 import { REVIEWS } from "../../lib/site";
@@ -33,6 +33,7 @@ import {
 } from "../../components/ui";
 import { Stars } from "../../components/public/StayBits";
 import { REVIEW_AVATAR_BUCKET, ReviewerAvatar, reviewAvatarUrl } from "../../components/public/Reviews";
+import { ImportReviewsModal } from "../../components/admin/ImportReviews";
 
 type Row = Review & {
   guest: { full_name: string; email: string | null } | null;
@@ -49,6 +50,7 @@ export default function Reviews() {
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editingReview, setEditingReview] = useState<Row | null>(null);
+  const [importing, setImporting] = useState(false);
   const [q, setQ] = useState("");
   const [stars, setStars] = useState("any");
   const [source, setSource] = useState<"any" | ReviewSource>("any");
@@ -129,9 +131,14 @@ export default function Reviews() {
         title="Reviews"
         description="Guests can review their stay from their Trips page after checkout. Nothing shows on the website until you publish it."
         actions={
-          <Button onClick={() => setAdding(true)}>
-            <Plus className="size-4" /> Add a review
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => setImporting(true)}>
+              <FileUp className="size-4" /> Import from Facebook, Google, Airbnb
+            </Button>
+            <Button onClick={() => setAdding(true)}>
+              <Plus className="size-4" /> Add a review
+            </Button>
+          </>
         }
       />
 
@@ -308,6 +315,18 @@ export default function Reviews() {
       </Modal>
       {adding && <ReviewModal onClose={() => setAdding(false)} />}
       {editingReview && <ReviewModal review={editingReview} onClose={() => setEditingReview(null)} />}
+      {importing && (
+        <ImportReviewsModal
+          existing={(rows ?? []).map((r) => ({
+            id: r.id,
+            source: r.source ?? "website",
+            reviewer_name: r.reviewer_name || r.guest?.full_name || "",
+            body: r.body,
+            avatar_path: r.avatar_path,
+          }))}
+          onClose={() => setImporting(false)}
+        />
+      )}
     </>
   );
 }
