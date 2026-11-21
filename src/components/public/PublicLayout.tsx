@@ -138,7 +138,7 @@ function PublicShell() {
       </main>
 
       {!onMessages && (
-      <footer id="contact" className="scroll-mt-4 border-t-2 border-brand-700">
+      <footer id="contact" className={cn("scroll-mt-4", pathname !== "/" && "border-t border-sand-200/70")}>
         <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-14 pb-14 sm:grid-cols-2 sm:px-8 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
           <div>
             <Wordmark size="footer" />

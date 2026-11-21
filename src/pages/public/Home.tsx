@@ -8,8 +8,8 @@ import {
   CheckCircle2,
   Grid3X3,
   MapPin,
+  Quote,
   Sparkles,
-  Star,
   ThumbsUp,
   Users,
   Waves,
@@ -25,7 +25,7 @@ import { cn } from "../../lib/utils";
 import { EmptyState } from "../../components/ui";
 import { SearchPill, type StaySearch } from "../../components/public/SearchPill";
 import { unitPhotos } from "../../components/public/StayBits";
-import { ReviewerAvatar, TestimonialSection, toTestimonials } from "../../components/public/Reviews";
+import { ReviewerAvatar, SourceLogo, TestimonialSection, toTestimonials } from "../../components/public/Reviews";
 import { usePublishedReviews } from "../../lib/guest";
 import type { Unit } from "../../lib/types";
 
@@ -128,7 +128,7 @@ export default function Home() {
 
       {/* The search rides up onto the hero's lower edge, then sticks to the top
           as the page scrolls. Outside the hero: sticky is inert in overflow-hidden. */}
-      <div className="pointer-events-none sticky top-0 z-20 -mt-8 px-4 pt-3 pb-3 sm:-mt-10 sm:px-8 [&>*]:pointer-events-auto">
+      <div className="pointer-events-none sticky top-0 z-20 -mt-12 -mb-12 px-4 pt-3 pb-3 sm:-mt-16 sm:-mb-14 sm:px-8 [&>*]:pointer-events-auto">
         <SearchPill
           value={draft}
           onChange={setDraft}
@@ -143,8 +143,7 @@ export default function Home() {
       </div>
 
       {/* ── The stay, on linen ── */}
-      <Curve color={LINEN} className="mt-6" />
-      <section id="stay" className="scroll-mt-24 bg-linen px-4 pt-6 pb-14 sm:px-8 sm:pt-8 sm:pb-20">
+      <section id="stay" className="scroll-mt-24 bg-linen px-4 pt-20 pb-14 sm:px-8 sm:pt-24 sm:pb-20">
         <div className="mx-auto max-w-7xl">
           <Heading eyebrow="Booked whole, never shared" title="Your private haven" center />
           {isLoading ? (
@@ -297,9 +296,11 @@ function Heading({ eyebrow, title, center }: { eyebrow: string; title: string; c
 }
 
 /**
- * The hero sells the place in one look: the pool and the glass A-frame, full
- * bleed, the promise and the price over it, real guests' faces for proof, and
- * three more rooms down the side with the rest one tap away.
+ * The hero, on the same espresso ground as the reviews (2026-11-21: the owner
+ * liked that section better than the photo hero). Cream type on the left with
+ * the promise, the price and the proof; on the right the place in white-framed
+ * photographs, and one guest's words on a card like the reviews' own. It ends
+ * on a curve into the linen below, with the search riding that edge.
  */
 function Hero({
   resort,
@@ -310,94 +311,133 @@ function Hero({
   testimonials: ReturnType<typeof toTestimonials>;
   onPhotos: () => void;
 }) {
-  const faces = testimonials.slice(0, 4);
+  const faces = testimonials.slice(0, 5);
   const good = testimonials.filter((t) => (t.rating == null ? t.recommends : t.rating >= 4)).length;
-  const side = [PHOTOS.billiards, PHOTOS.aframeLoft, PHOTOS.gardenUmbrellas];
+  // A short one reads whole on the card.
+  const quote = [...testimonials].filter((t) => t.body.length >= 50).sort((a, b) => a.body.length - b.body.length)[0];
   return (
-    <section className="px-3 pt-3 sm:px-5 sm:pt-4">
-      <div className="relative mx-auto max-w-[1440px] overflow-hidden rounded-[28px] bg-espresso sm:rounded-[36px]">
-        <img
-          src={PHOTOS.poolAframe.src}
-          alt={PHOTOS.poolAframe.alt}
-          fetchPriority="high"
-          className="absolute inset-0 size-full object-cover object-[60%_40%]"
-        />
-        <div className="absolute inset-0 bg-linear-to-r from-[#1c130b]/85 via-[#1c130b]/45 to-[#1c130b]/5" />
-        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-[#1c130b]/70 to-transparent" />
+    <section className="relative bg-espresso text-sand-50">
+      <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 pt-10 pb-6 sm:px-8 sm:pt-14 lg:grid-cols-[1fr_1.05fr] lg:gap-16 lg:pt-16 lg:pb-10">
+        <div>
+          <p className="brand-eyebrow text-[11px] text-sand-50/60">
+            Private pool resort <span className="mx-1.5 text-sand-50/30">·</span> {LOCATION_LABEL}
+          </p>
+          <h1 className="site-display mt-5 text-[2.6rem] leading-[1.02] text-sand-50 sm:text-6xl lg:text-[4.4rem]">
+            The whole resort,
+            <br />
+            just for you.
+          </h1>
+          <p className="mt-6 max-w-md text-[15px] leading-relaxed text-sand-50/75 sm:text-base">
+            A glass A-frame, adult and kids pools, a garden and a pavilion
+            {resort ? ` for up to ${resort.max_guests} guests` : ""}. Booked whole, never shared.
+          </p>
 
-        <div className="relative grid min-h-[560px] items-end gap-10 px-6 pt-28 pb-20 sm:min-h-[620px] sm:px-12 sm:pb-24 lg:min-h-[min(calc(100svh-7.5rem),740px)] lg:grid-cols-[1fr_13rem] lg:px-16">
-          <div className="max-w-2xl text-sand-50">
-            <p className="brand-eyebrow text-[11px] text-sand-50/80 sm:text-xs">
-              Private pool resort <span className="mx-1.5 text-sand-50/40">·</span> {LOCATION_LABEL}
-            </p>
-            <h1 className="site-display mt-5 text-[2.6rem] leading-[0.98] sm:text-6xl lg:text-[5rem]">
-              The whole resort,
-              <br />
-              just for you
-            </h1>
-            <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-sand-50/85 sm:text-base">
-              A glass A-frame, adult and kids pools, a garden and a pavilion
-              {resort ? ` for up to ${resort.max_guests} guests` : ""}. Booked whole, never shared.
-            </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <a
+              href="#stay"
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-sand-50 px-7 text-sm font-semibold text-espresso transition-colors hover:bg-white"
+            >
+              Check availability <ArrowRight className="size-4" />
+            </a>
+            <button
+              type="button"
+              onClick={onPhotos}
+              className="inline-flex h-12 cursor-pointer items-center gap-2 rounded-full border border-white/25 px-6 text-sm font-medium text-sand-50 transition-colors hover:bg-white/10"
+            >
+              <Grid3X3 className="size-4" /> See all {GALLERY.length} photos
+            </button>
+          </div>
 
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
-              <a
-                href="#stay"
-                className="inline-flex h-12 items-center gap-2 rounded-full bg-sand-50 px-7 text-sm font-semibold text-espresso shadow-level-3 transition-colors hover:bg-white"
-              >
-                Check availability <ArrowRight className="size-4" />
-              </a>
-              {resort && (
-                <p className="text-sm text-sand-50/75">
-                  From <span className="font-display text-2xl text-white">{money(resort.base_rate, true)}</span> / night
-                </p>
-              )}
-            </div>
-
+          <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4 border-t border-white/10 pt-7">
             {faces.length > 0 && (
-              <a href="#reviews" className="group mt-9 inline-flex items-center gap-3">
-                <span className="flex -space-x-2.5">
+              <a href="#reviews" className="flex items-center gap-3">
+                <span className="flex -space-x-3">
                   {faces.map((f) => (
-                    <ReviewerAvatar key={f.id} name={f.author} url={f.avatarUrl} className="size-9 text-xs ring-2 ring-[#2a1c10]" />
+                    <ReviewerAvatar key={f.id} name={f.author} url={f.avatarUrl} className="size-10 text-xs ring-2 ring-espresso" />
                   ))}
                 </span>
                 <span className="text-sm leading-tight">
-                  <span className="flex items-center gap-0.5 text-amber-300" aria-hidden>
-                    {[0, 1, 2, 3, 4].map((i) => (
-                      <Star key={i} className="size-3.5 fill-current" />
-                    ))}
-                  </span>
-                  <span className="mt-0.5 block text-sand-50/80 group-hover:text-white">
-                    Loved by {good} guests · {RECOMMEND.percent}% recommend
+                  <span className="block font-semibold text-sand-50">Loved by {good} guests</span>
+                  <span className="mt-0.5 flex items-center gap-1.5 text-sand-50/65">
+                    <SourceLogo source="facebook" className="size-3.5" /> {RECOMMEND.percent}% recommend
                   </span>
                 </span>
               </a>
             )}
-          </div>
-
-          {/* More of the place, down the side, with the rest one tap away. */}
-          <div className="hidden flex-col gap-3 lg:flex">
-            {side.map((p, i) => (
-              <button
-                key={p.src}
-                type="button"
-                onClick={onPhotos}
-                className="group relative aspect-[4/3] cursor-pointer overflow-hidden rounded-2xl ring-1 ring-white/25"
-              >
-                <img src={p.src} alt={p.alt} className="size-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                {i === side.length - 1 && (
-                  <span className="absolute inset-0 grid place-items-center bg-black/45 text-sm font-medium text-white backdrop-blur-[1px]">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Grid3X3 className="size-4" /> All {GALLERY.length} photos
-                    </span>
-                  </span>
-                )}
-              </button>
-            ))}
+            {resort && (
+              <p className="text-sm leading-tight text-sand-50/65">
+                From
+                <span className="block font-display text-2xl text-sand-50">
+                  {money(resort.base_rate, true)}
+                  <span className="font-sans text-sm text-sand-50/65"> / night</span>
+                </span>
+              </p>
+            )}
           </div>
         </div>
+
+        {/* The place, in white frames, with one guest's words beside it. */}
+        <div className="relative pb-6 sm:pb-10">
+          <div className="grid h-[320px] grid-cols-5 grid-rows-2 gap-3 sm:h-[460px] lg:h-[520px]">
+            <Framed photo={PHOTOS.poolAframe} className="col-span-3 row-span-2" onClick={onPhotos} priority />
+            <Framed photo={PHOTOS.billiards} className="col-span-2" onClick={onPhotos} />
+            <Framed photo={PHOTOS.aframeLoft} className="col-span-2" onClick={onPhotos} />
+          </div>
+          {quote && (
+            <figure className="absolute bottom-0 -left-4 hidden w-[17rem] rounded-2xl bg-white p-5 text-ink shadow-level-4 sm:block lg:-left-10">
+              <div className="flex items-start justify-between gap-3">
+                <Quote className="size-5 rotate-180 fill-brand-700 text-brand-700" aria-hidden />
+                <SourceLogo source={quote.source} className="size-4" />
+              </div>
+              <blockquote className="mt-3 line-clamp-3 text-sm leading-relaxed text-ink-soft">{quote.body}</blockquote>
+              <figcaption className="mt-4 flex items-center gap-2.5 border-t border-sand-200/70 pt-3.5">
+                <ReviewerAvatar name={quote.author} url={quote.avatarUrl} className="size-8 text-xs" />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{quote.author}</span>
+                  <span className="block truncate text-xs text-ink-muted">{quote.month}</span>
+                </span>
+              </figcaption>
+            </figure>
+          )}
+        </div>
+      </div>
+
+      {/* The hand-over to the linen below, and the search sits on it. */}
+      <div className="bg-linen">
+        <Curve color={ESPRESSO} edge="bottom" />
       </div>
     </section>
+  );
+}
+
+/** A photograph in a white frame, the way the review cards sit on the espresso. */
+function Framed({
+  photo,
+  className,
+  onClick,
+  priority,
+}: {
+  photo: { src: string; alt: string };
+  className?: string;
+  onClick: () => void;
+  priority?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn("group cursor-pointer overflow-hidden rounded-2xl bg-white p-1.5 shadow-level-4", className)}
+    >
+      <span className="block size-full overflow-hidden rounded-xl">
+        <img
+          src={photo.src}
+          alt={photo.alt}
+          fetchPriority={priority ? "high" : undefined}
+          loading={priority ? undefined : "lazy"}
+          className="size-full object-cover transition-transform duration-700 group-hover:scale-105"
+        />
+      </span>
+    </button>
   );
 }
 
