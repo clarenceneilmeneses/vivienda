@@ -284,9 +284,8 @@ export default function Stay() {
             title="Availability"
             aside={
               <span className="hidden items-center gap-4 text-xs text-ink-muted sm:flex">
-                <Legend className="bg-brand-700" /> Selected
-                <Legend className="bg-sand-300" /> Booked
-                <Legend className="border border-sand-300 bg-white" /> Available
+                <Legend className="bg-brand-700" /> Your dates
+                <Legend className="bg-sand-200" /> Booked
               </span>
             }
           >
@@ -294,11 +293,21 @@ export default function Stay() {
               value={range}
               onChange={setRange}
               unavailable={unavailable ?? new Set()}
-              dayNote={(iso) => compactMoney(nightlyRate(unit, iso, overrides))}
+              dayNote={(iso) => (overrides?.has(iso) ? compactMoney(nightlyRate(unit, iso, overrides)) : null)}
               minNights={minNights}
             />
-            <p className="mt-3 text-xs text-ink-muted">
-              Crossed-out nights are taken. Prices shown are per night.
+            <div className="mx-auto mt-5 flex max-w-sm flex-wrap justify-center gap-2 text-sm">
+              <span className="rounded-full bg-linen px-3 py-1.5 text-ink">
+                <b>{money(unit.base_rate, true)}</b> Sun–Thu
+              </span>
+              {unit.weekend_rate != null && unit.weekend_rate !== unit.base_rate && (
+                <span className="rounded-full bg-linen px-3 py-1.5 text-ink">
+                  <b>{money(unit.weekend_rate, true)}</b> Fri & Sat
+                </span>
+              )}
+            </div>
+            <p className="mt-3 text-center text-xs text-ink-muted">
+              Grey days are booked. Holidays with their own price show it in brown.
               {unit.min_nights > 1 && ` Stays are at least ${unit.min_nights} nights.`}
               {datedMinimums > 0 && " Some dates, like holidays, have a longer minimum stay."}
             </p>
@@ -444,7 +453,7 @@ export default function Stay() {
                     if (r.checkIn && r.checkOut) setDatesOpen(false);
                   }}
                   unavailable={unavailable ?? new Set()}
-                  dayNote={(iso) => compactMoney(nightlyRate(unit, iso, overrides))}
+                  dayNote={(iso) => (overrides?.has(iso) ? compactMoney(nightlyRate(unit, iso, overrides)) : null)}
                   minNights={minNights}
                 />
               )}
@@ -584,7 +593,7 @@ function DatesPopover({
   return (
     <>
       <div className="fixed inset-0 z-30" onClick={onClose} aria-hidden />
-      <div className="absolute top-full right-0 z-40 mt-2 w-[640px] rounded-2xl border border-sand-200/70 bg-white p-5 shadow-level-4">
+      <div className="absolute top-full right-0 z-40 mt-2 w-[380px] rounded-2xl border border-sand-200/70 bg-white p-5 shadow-level-4">
         <div className="mb-3 flex items-center justify-between">
           <p className="flex items-center gap-2 text-sm font-medium text-ink">
             <CalendarClock className="size-4 text-brand-700" /> Select dates

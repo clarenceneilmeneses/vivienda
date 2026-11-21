@@ -30,7 +30,7 @@ export function RangeCalendar({
   onChange,
   unavailable,
   minDate,
-  months = 2,
+  months = 1,
   onVisibleMonthChange,
   dayNote,
   minNights,
@@ -87,7 +87,7 @@ export function RangeCalendar({
   const canGoBack = startOfMonth(first) > startOfMonth(parseISO(min));
 
   return (
-    <div className="select-none">
+    <div className={cn("select-none", months === 1 && "mx-auto w-full max-w-sm")}>
       <div className="mb-3 flex items-center justify-between">
         <button
           type="button"
@@ -214,15 +214,16 @@ function Month({
                   "relative flex size-11 flex-col items-center justify-center rounded-full text-sm transition-colors",
                   picked
                     ? "bg-brand-700 font-semibold text-sand-50 shadow-level-2"
-                    : disabled
-                      ? "text-ink-muted/45"
-                      : "text-ink group-hover:ring-1 group-hover:ring-ink/70",
-                  taken && !asCheckout && !past && "line-through decoration-ink-muted/50",
+                    : taken && !asCheckout && !past
+                      ? "bg-sand-200/70 text-ink-muted/70 line-through decoration-ink-muted/60"
+                      : disabled
+                        ? "text-ink-muted/40"
+                        : "font-medium text-ink group-hover:ring-1 group-hover:ring-ink/70",
                 )}
               >
                 <span className="leading-none">{format(d, "d")}</span>
                 {note && (
-                  <span className={cn("mt-1 text-[9px] leading-none tracking-tight", picked ? "text-sand-100/90" : "text-ink-muted/80")}>
+                  <span className={cn("mt-1 text-[9px] leading-none font-semibold tracking-tight", picked ? "text-sand-100/90" : "text-terra-600")}>
                     {note}
                   </span>
                 )}

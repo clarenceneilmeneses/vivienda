@@ -96,8 +96,10 @@
  * neutral black. The admin keeps Outfit and Karla.
  */
 [data-site="public"] {
-  --font-display: "Galdeano", ui-serif, Georgia, serif;
-  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  /* 2026-11-21: easier to read. A warm serif for headings in normal case,
+     a very legible sans for everything else (was Galdeano caps + Montserrat). */
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --color-ink: #3c2411;
   --color-ink-soft: #4d3726;
   --color-ink-muted: #5f4a3a;
@@ -106,9 +108,10 @@
   color: var(--color-ink);
 }
 
-/* Galdeano has one weight; a faux-bold version smudges. */
-[data-site="public"] :is(h1, h2, h3, .font-display, .site-display, .brand-caps) {
-  font-weight: 400 !important;
+/* Headings in Fraunces at a steady medium weight; small caps labels in the sans. */
+[data-site="public"] :is(h1, h2, h3, .font-display, .site-display) {
+  font-weight: 500 !important;
+  font-optical-sizing: auto;
 }
 
 /* The paper: off-white with a grain drawn by an SVG noise filter. */
@@ -122,22 +125,23 @@
   /* Hero and section headings on the guest site: caps with counter-spacing. */
   .site-display {
     font-family: var(--font-display);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: -0.01em;
   }
 
   /* Display caps, tracked like the PSDs (100/1000 em): nav, buttons, labels. */
   .brand-caps {
-    font-family: var(--font-display);
+    font-family: var(--font-sans);
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
+    font-size: 0.8125rem;
   }
 
   /* "ALITAGTAG | BATANGAS": the widest tracking on the page. */
   .brand-eyebrow {
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.5em;
+    letter-spacing: 0.22em;
   }
 
   .text-brand-heading {
