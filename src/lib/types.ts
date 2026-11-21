@@ -1,5 +1,6 @@
 export type BookingStatus = "pending" | "confirmed" | "checked_in" | "checked_out" | "cancelled" | "declined";
 export type BookingSource = "website" | "facebook" | "walk_in" | "phone" | "other";
+export type PayPlan = "downpayment" | "full";
 export type PaymentMethod = "gcash" | "bank_transfer" | "cash" | "card" | "other";
 
 export interface Settings {
@@ -29,6 +30,8 @@ export interface Settings {
   reminder_days_before: number;
   /** Email types switched off under Settings → Notifications. */
   disabled_emails: string[];
+  /** Email the owner a summary of the day every morning. */
+  daily_report: boolean;
 }
 
 export interface Unit {
@@ -45,6 +48,12 @@ export interface Unit {
   photos: string[];
   is_active: boolean;
   sort_order: number;
+  /** 0 means no pets. */
+  max_pets: number;
+  /** Per pet, once per stay. */
+  pet_fee: number;
+  min_nights: number;
+  tour_video_url: string;
 }
 
 export interface Guest {
@@ -63,7 +72,12 @@ export interface Booking {
   guest_id: string;
   check_in: string;
   check_out: string;
+  /** Head count: adults plus children. */
   guests_count: number;
+  children: number;
+  pets: number;
+  pet_total: number;
+  pay_plan: PayPlan;
   status: BookingStatus;
   source: BookingSource;
   subtotal: number;
@@ -126,6 +140,7 @@ export interface Quote {
   nights: number;
   room_total: number;
   extra_guest_total: number;
+  pet_total: number;
   total: number;
 }
 
@@ -159,7 +174,10 @@ export const EXPENSE_CATEGORIES = [
   { value: "salaries", label: "Staff & salaries" },
   { value: "supplies", label: "Supplies & toiletries" },
   { value: "maintenance", label: "Repairs & maintenance" },
-  { value: "cleaning", label: "Cleaning & laundry" },
+  { value: "cleaning", label: "Cleaning" },
+  { value: "laundry", label: "Laundry" },
+  { value: "gas", label: "Gas (LPG)" },
+  { value: "water", label: "Water delivery" },
   { value: "food", label: "Food & kitchen" },
   { value: "marketing", label: "Marketing & ads" },
   { value: "fees", label: "Fees & commissions" },
@@ -206,19 +224,49 @@ export interface Message {
   edited_at: string | null;
   unsent_at: string | null;
   sent_at: string;
+  reply_to: string | null;
+  /** One reaction per side, e.g. { guest: "❤️" }. */
+  reactions: { guest?: string; host?: string };
+  attachment_path: string | null;
 }
+
+export const REACTIONS = ["❤️", "👍", "😂", "😮", "🙏"] as const;
 
 export interface QuickReply {
   id: string;
   title: string;
   body: string;
   sort_order: number;
+  /** Sent by itself when a booking is made or confirmed. */
+  auto_send: "booking_created" | "booking_confirmed" | null;
+}
+
+export type ReviewSource = "website" | "airbnb" | "google" | "facebook" | "other";
+
+export const REVIEW_SOURCE_LABEL: Record<ReviewSource, string> = {
+  website: "Our website",
+  airbnb: "Airbnb",
+  google: "Google",
+  facebook: "Facebook",
+  other: "Other",
+};
+
+export interface ArrivalGuide {
+  check_in_method: string;
+  wifi_name: string;
+  wifi_password: string;
+  parking: string;
+  house_manual: string;
+  emergency: string;
 }
 
 export interface Review {
   id: string;
-  booking_id: string;
-  guest_id: string;
+  booking_id: string | null;
+  guest_id: string | null;
+  source: ReviewSource;
+  reviewer_name: string;
+  reviewed_on: string | null;
   rating: number;
   body: string;
   status: "pending" | "published" | "hidden";

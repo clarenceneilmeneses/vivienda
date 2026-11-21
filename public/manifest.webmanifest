@@ -1,0 +1,14 @@
+{
+  "name": "Vivienda",
+  "short_name": "Vivienda",
+  "description": "Book your stay, see your trips and message the resort.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f4f2",
+  "theme_color": "#f5f4f2",
+  "icons": [
+    { "src": "/images/logo-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}

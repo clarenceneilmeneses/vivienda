@@ -32,7 +32,7 @@ import { SITE } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import type { BookingSummary, Conversation, Message } from "../../lib/types";
 import { Button, EmptyState, Input, Spinner, StatusBadge } from "../../components/ui";
-import { MessageThread } from "../../components/MessageThread";
+import { MessageThread, PhotoButton, ReplyBar, snippet, uploadChatPhoto } from "../../components/MessageThread";
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
 import { BookingForm } from "../../components/admin/BookingForm";
 
@@ -265,6 +265,12 @@ function ThreadPane({ row, onBack }: { row: Row; onBack: () => void }) {
   const [openBooking, setOpenBooking] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
+  useEffect(() => {
+    setReplyTo(null);
+    setPhoto(null);
+  }, [row.id]);
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["inbox", "thread", row.id],
@@ -305,14 +311,22 @@ function ThreadPane({ row, onBack }: { row: Row; onBack: () => void }) {
 
   const send = useMutation({
     mutationFn: async (body: string) => {
-      const { error } = await supabase
-        .from("messages")
-        .insert({ conversation_id: row.id, author: "host", author_name: hostName, body });
+      const attachment = photo ? await uploadChatPhoto(row.guest_id, photo) : null;
+      const { error } = await supabase.from("messages").insert({
+        conversation_id: row.id,
+        author: "host",
+        author_name: hostName,
+        body,
+        reply_to: replyTo?.id ?? null,
+        attachment_path: attachment,
+      });
       if (error) throw error;
       void notifyMessage("to_guest", row.id);
     },
     onSuccess: () => {
       setDraft("");
+      setReplyTo(null);
+      setPhoto(null);
       void qc.invalidateQueries({ queryKey: ["inbox"] });
     },
     onError: (e) => toast.error(errorMessage(e)),
@@ -407,6 +421,15 @@ function ThreadPane({ row, onBack }: { row: Row; onBack: () => void }) {
                   Open booking
                 </button>
               )}
+              onReply={(m) => (setReplyTo(m), textRef.current?.focus())}
+              onReact={async (m, emoji) => {
+                const next = { ...(m.reactions ?? {}) };
+                if (emoji) next.host = emoji;
+                else delete next.host;
+                const { error } = await supabase.from("messages").update({ reactions: next }).eq("id", m.id);
+                if (error) return void toast.error(errorMessage(error));
+                await qc.invalidateQueries({ queryKey: ["inbox", "thread", row.id] });
+              }}
               actions={{
                 onEdit: async (m, body) => {
                   const { error } = await supabase
@@ -434,7 +457,11 @@ function ThreadPane({ row, onBack }: { row: Row; onBack: () => void }) {
           setDraft={setDraft}
           textRef={textRef}
           sending={send.isPending}
-          onSend={() => draft.trim() && send.mutate(draft.trim())}
+          onSend={() => (draft.trim() || photo) && send.mutate(draft.trim())}
+          replyTo={replyTo ? { name: replyTo.author === "host" ? "yourself" : firstName || "guest", text: snippet(replyTo) } : null}
+          onCancelReply={() => setReplyTo(null)}
+          photo={photo}
+          onPhoto={setPhoto}
           firstName={firstName}
           problem={lastGuest?.kind === "problem"}
         />
@@ -525,6 +552,10 @@ function Composer({
   onSend,
   firstName,
   problem,
+  replyTo,
+  onCancelReply,
+  photo,
+  onPhoto,
 }: {
   draft: string;
   setDraft: (v: string) => void;
@@ -533,6 +564,10 @@ function Composer({
   onSend: () => void;
   firstName: string;
   problem: boolean;
+  replyTo: { name: string; text: string } | null;
+  onCancelReply: () => void;
+  photo: File | null;
+  onPhoto: (f: File | null) => void;
 }) {
   const { data: settings } = useSettings();
   const { data: replies = [] } = useQuickReplies();
@@ -545,6 +580,15 @@ function Composer({
         <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold text-red-700">
           <Siren className="size-3.5" /> The guest reported a problem during their stay
         </p>
+      )}
+      {replyTo && <ReplyBar name={replyTo.name} text={replyTo.text} onCancel={onCancelReply} />}
+      {photo && (
+        <div className="mb-2 flex items-center gap-2 rounded-xl bg-sand-100 px-3 py-1.5 text-xs text-ink-soft">
+          <span className="min-w-0 flex-1 truncate">📷 {photo.name}</span>
+          <button type="button" onClick={() => onPhoto(null)} className="cursor-pointer underline">
+            Remove
+          </button>
+        </div>
       )}
       {replies.length > 0 && (
         <div className="no-scrollbar mb-2 flex gap-1.5 overflow-x-auto">
@@ -573,6 +617,7 @@ function Composer({
         >
           <Zap className="size-4" />
         </button>
+        <PhotoButton onPick={onPhoto} disabled={sending} />
         {open && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
@@ -623,7 +668,7 @@ function Composer({
         <button
           type="button"
           onClick={onSend}
-          disabled={!draft.trim() || sending}
+          disabled={(!draft.trim() && !photo) || sending}
           className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-full bg-brand-700 text-white hover:bg-brand-700/90 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="Send"
         >

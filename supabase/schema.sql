@@ -61,6 +61,12 @@ create table if not exists public.units (
   check (max_guests >= capacity)
 );
 
+-- Pets, a minimum stay and a video tour (as in Malaya, Oct–Nov 2026).
+alter table public.units add column if not exists max_pets int not null default 0 check (max_pets >= 0);
+alter table public.units add column if not exists pet_fee numeric(12,2) not null default 0 check (pet_fee >= 0);
+alter table public.units add column if not exists min_nights int not null default 1 check (min_nights between 1 and 30);
+alter table public.units add column if not exists tour_video_url text not null default '';
+
 create table if not exists public.rate_overrides (
   id uuid primary key default gen_random_uuid(),
   unit_id uuid not null references public.units(id) on delete cascade,
@@ -74,6 +80,18 @@ create table if not exists public.blocked_dates (
   unit_id uuid not null references public.units(id) on delete cascade,
   date date not null,
   reason text default '',
+  unique (unit_id, date)
+);
+-- Who closed a night, and when, so the calendar can say.
+alter table public.blocked_dates add column if not exists closed_by text default (auth.jwt() ->> 'email');
+alter table public.blocked_dates add column if not exists created_at timestamptz not null default now();
+
+-- A longer minimum stay for stays starting on a given date (holidays, long weekends).
+create table if not exists public.stay_minimums (
+  id uuid primary key default gen_random_uuid(),
+  unit_id uuid not null references public.units(id) on delete cascade,
+  date date not null,
+  min_nights int not null check (min_nights between 1 and 30),
   unique (unit_id, date)
 );
 
@@ -137,6 +155,13 @@ create table if not exists public.bookings (
   ) where (status in ('pending','confirmed','checked_in'))
 );
 alter table public.bookings alter column ref set default public.gen_booking_ref();
+-- The party. guests_count stays the head count (adults + children); pets are extra.
+alter table public.bookings add column if not exists children int not null default 0 check (children >= 0);
+alter table public.bookings add column if not exists pets int not null default 0 check (pets >= 0);
+alter table public.bookings add column if not exists pet_total numeric(12,2) not null default 0 check (pet_total >= 0);
+-- What the guest chose to pay up front: the downpayment, or everything.
+alter table public.bookings add column if not exists pay_plan text not null default 'downpayment'
+  check (pay_plan in ('downpayment','full'));
 create index if not exists bookings_dates_idx on public.bookings (check_in, check_out);
 
 create table if not exists public.payments (
@@ -184,7 +209,9 @@ create trigger settings_touch before update on public.settings
   for each row execute function public.touch_updated_at();
 
 -- Booking with guest, unit, and what has been paid. Respects the caller's RLS.
-create or replace view public.booking_summary with (security_invoker = on) as
+-- Dropped first: b.* grows when bookings gains a column, and a view can't reorder.
+drop view if exists public.booking_summary;
+create view public.booking_summary with (security_invoker = on) as
 select
   b.*,
   g.full_name as guest_name,
@@ -220,6 +247,7 @@ alter table public.settings enable row level security;
 alter table public.units enable row level security;
 alter table public.rate_overrides enable row level security;
 alter table public.blocked_dates enable row level security;
+alter table public.stay_minimums enable row level security;
 alter table public.guests enable row level security;
 alter table public.bookings enable row level security;
 alter table public.payments enable row level security;
@@ -238,6 +266,11 @@ drop policy if exists units_read on public.units;
 create policy units_read on public.units for select using (is_active or public.is_admin());
 drop policy if exists units_write on public.units;
 create policy units_write on public.units for all using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists minimums_read on public.stay_minimums;
+create policy minimums_read on public.stay_minimums for select using (true);
+drop policy if exists minimums_write on public.stay_minimums;
+create policy minimums_write on public.stay_minimums for all using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists rates_read on public.rate_overrides;
 create policy rates_read on public.rate_overrides for select using (true);
@@ -259,15 +292,17 @@ end $$;
 
 -- Price for a stay. Per night: a date override wins, then the weekend rate
 -- (Friday and Saturday nights), then the base rate. Guests above capacity pay
--- the extra guest fee per night.
-create or replace function public.quote_stay(p_unit uuid, p_check_in date, p_check_out date, p_guests int)
-returns table (nights int, room_total numeric, extra_guest_total numeric, total numeric)
+-- the extra guest fee per night. Each pet is the unit's pet fee, once per stay.
+drop function if exists public.quote_stay(uuid, date, date, int);
+create or replace function public.quote_stay(p_unit uuid, p_check_in date, p_check_out date, p_guests int, p_pets int default 0)
+returns table (nights int, room_total numeric, extra_guest_total numeric, pet_total numeric, total numeric)
 language plpgsql stable security definer set search_path = public as $$
 declare
   u public.units;
   n int;
   rooms numeric := 0;
   extra numeric := 0;
+  pet numeric := 0;
 begin
   select * into u from public.units where id = p_unit;
   if not found then raise exception 'Unit not found'; end if;
@@ -282,8 +317,20 @@ begin
   left join public.rate_overrides r on r.unit_id = u.id and r.date = g.d::date;
 
   extra := greatest(coalesce(p_guests, 1) - u.capacity, 0) * u.extra_guest_fee * n;
-  return query select n, rooms, extra, rooms + extra;
+  pet := greatest(coalesce(p_pets, 0), 0) * u.pet_fee;
+  return query select n, rooms, extra, pet, rooms + extra + pet;
 end $$;
+
+-- The shortest stay allowed when checking in on a date: that date's own
+-- minimum if one is set, otherwise the unit's.
+create or replace function public.min_nights_for(p_unit uuid, p_check_in date)
+returns int
+language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select m.min_nights from public.stay_minimums m where m.unit_id = p_unit and m.date = p_check_in),
+    (select u.min_nights from public.units u where u.id = p_unit),
+    1);
+$$;
 
 -- Nights a unit cannot be booked (live bookings + blocked dates). No guest data leaves.
 create or replace function public.unavailable_nights(p_unit uuid, p_from date, p_to date)
@@ -301,6 +348,7 @@ language sql stable security definer set search_path = public as $$
   ) x order by 1;
 $$;
 
+drop function if exists public.create_booking(uuid, date, date, int, text, text, text, text, text, text, boolean);
 create or replace function public.create_booking(
   p_unit uuid,
   p_check_in date,
@@ -312,7 +360,10 @@ create or replace function public.create_booking(
   p_special_requests text,
   p_payment_method text,
   p_receipt_path text,
-  p_waiver_accepted boolean
+  p_waiver_accepted boolean,
+  p_children int default 0,
+  p_pets int default 0,
+  p_pay_plan text default 'downpayment'
 ) returns table (id uuid, ref text, total numeric)
 language plpgsql volatile security definer set search_path = public as $$
 #variable_conflict use_column
@@ -331,6 +382,19 @@ begin
   if p_guests < 1 or p_guests > u.max_guests then
     raise exception 'This unit fits up to % guests.', u.max_guests;
   end if;
+  if coalesce(p_children, 0) < 0 or coalesce(p_children, 0) >= p_guests then
+    raise exception 'At least one adult must be on the booking.';
+  end if;
+  if coalesce(p_pets, 0) < 0 then raise exception 'Check the number of pets.'; end if;
+  if coalesce(p_pets, 0) > u.max_pets then
+    if u.max_pets = 0 then raise exception 'Sorry, pets are not allowed.'; end if;
+    raise exception 'Up to % pets are allowed.', u.max_pets;
+  end if;
+  if p_check_out - p_check_in < public.min_nights_for(p_unit, p_check_in) then
+    raise exception 'Stays starting % are at least % nights.', to_char(p_check_in, 'Mon DD'),
+      public.min_nights_for(p_unit, p_check_in);
+  end if;
+  if coalesce(p_pay_plan, 'downpayment') not in ('downpayment','full') then raise exception 'Unknown payment plan.'; end if;
   if coalesce(trim(p_full_name), '') = '' then raise exception 'Please enter your name.'; end if;
   if coalesce(trim(p_email), '') !~* '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'Please enter a valid email.'; end if;
   if coalesce(trim(p_phone), '') = '' then raise exception 'Please enter a mobile number.'; end if;
@@ -342,7 +406,7 @@ begin
     raise exception 'Sorry, some of those nights were just taken. Please pick other dates.';
   end if;
 
-  select * into q from public.quote_stay(p_unit, p_check_in, p_check_out, p_guests);
+  select * into q from public.quote_stay(p_unit, p_check_in, p_check_out, p_guests, coalesce(p_pets, 0));
 
   insert into public.guests (full_name, email, phone)
   values (trim(p_full_name), lower(trim(p_email)), trim(p_phone))
@@ -351,10 +415,12 @@ begin
   returning guests.id into gid;
 
   begin
-    insert into public.bookings (unit_id, guest_id, check_in, check_out, guests_count, status, source,
-                                 subtotal, total, payment_method, receipt_path, special_requests, waiver_accepted_at)
-    values (p_unit, gid, p_check_in, p_check_out, p_guests, 'pending', 'website',
-            q.total, q.total, p_payment_method, nullif(p_receipt_path, ''), coalesce(p_special_requests, ''), now())
+    insert into public.bookings (unit_id, guest_id, check_in, check_out, guests_count, children, pets, pet_total,
+                                 pay_plan, status, source, subtotal, total, payment_method, receipt_path,
+                                 special_requests, waiver_accepted_at)
+    values (p_unit, gid, p_check_in, p_check_out, p_guests, coalesce(p_children, 0), coalesce(p_pets, 0), q.pet_total,
+            coalesce(p_pay_plan, 'downpayment'), 'pending', 'website', q.total, q.total, p_payment_method,
+            nullif(p_receipt_path, ''), coalesce(p_special_requests, ''), now())
     returning bookings.id, bookings.ref into new_id, new_ref;
   exception when exclusion_violation then
     raise exception 'Sorry, some of those nights were just taken. Please pick other dates.';
@@ -387,9 +453,10 @@ language sql stable security definer set search_path = public as $$
   where upper(s.ref) = upper(trim(p_ref)) and lower(s.guest_email) = lower(trim(p_email));
 $$;
 
-revoke all on function public.create_booking(uuid, date, date, int, text, text, text, text, text, text, boolean) from public;
-grant execute on function public.create_booking(uuid, date, date, int, text, text, text, text, text, text, boolean) to anon, authenticated;
-grant execute on function public.quote_stay(uuid, date, date, int) to anon, authenticated;
+revoke all on function public.create_booking(uuid, date, date, int, text, text, text, text, text, text, boolean, int, int, text) from public;
+grant execute on function public.create_booking(uuid, date, date, int, text, text, text, text, text, text, boolean, int, int, text) to anon, authenticated;
+grant execute on function public.quote_stay(uuid, date, date, int, int) to anon, authenticated;
+grant execute on function public.min_nights_for(uuid, date) to anon, authenticated;
 grant execute on function public.unavailable_nights(uuid, date, date) to anon, authenticated;
 grant execute on function public.booking_status(text, text) to anon, authenticated;
 grant execute on function public.is_admin() to anon, authenticated;
@@ -473,6 +540,12 @@ create table if not exists public.messages (
   sent_at timestamptz not null default now()
 );
 create index if not exists messages_conversation_idx on public.messages (conversation_id, sent_at);
+-- Reply to one message, react to one, or send a photo (as in Malaya's Inbox).
+alter table public.messages add column if not exists reply_to uuid references public.messages(id) on delete set null;
+-- {"guest": "❤️", "host": "👍"}: one reaction per side.
+alter table public.messages add column if not exists reactions jsonb not null default '{}';
+-- A photo in the private chat-photos bucket, under the guest's id.
+alter table public.messages add column if not exists attachment_path text;
 
 create table if not exists public.quick_replies (
   id uuid primary key default gen_random_uuid(),
@@ -494,6 +567,14 @@ create table if not exists public.reviews (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Reviews from Airbnb, Google or Facebook, typed in by the owner, sit beside
+-- the website's own. Those have no booking or guest record, only a name.
+alter table public.reviews alter column booking_id drop not null;
+alter table public.reviews alter column guest_id drop not null;
+alter table public.reviews add column if not exists source text not null default 'website'
+  check (source in ('website','airbnb','google','facebook','other'));
+alter table public.reviews add column if not exists reviewer_name text not null default '';
+alter table public.reviews add column if not exists reviewed_on date;
 drop trigger if exists reviews_touch on public.reviews;
 create trigger reviews_touch before update on public.reviews
   for each row execute function public.touch_updated_at();
@@ -516,7 +597,7 @@ language plpgsql security definer set search_path = public as $$
 begin
   update public.conversations set
     last_message_at = new.sent_at,
-    last_message_preview = left(new.body, 160),
+    last_message_preview = left(coalesce(nullif(new.body, ''), case when new.attachment_path is not null then '📷 Photo' else '' end), 160),
     last_author = new.author,
     admin_unread = (new.author = 'guest'),
     admin_seen_at = case when new.author = 'host' then now() else admin_seen_at end,
@@ -617,15 +698,16 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- The guest's trips. No admin notes, no other guests.
+drop function if exists public.my_bookings();
 create or replace function public.my_bookings()
 returns table (id uuid, ref text, status text, unit_name text, unit_slug text, unit_photo text,
-               check_in date, check_out date, nights int, guests_count int,
+               check_in date, check_out date, nights int, guests_count int, children int, pets int, pay_plan text,
                total numeric, paid numeric, balance numeric, payment_method text, has_receipt boolean,
                special_requests text, created_at timestamptz,
                review_rating int, review_body text, review_status text, review_reply text)
 language sql stable security definer set search_path = public as $$
   select s.id, s.ref, s.status, s.unit_name, u.slug, u.photos[1],
-         s.check_in, s.check_out, s.nights, s.guests_count,
+         s.check_in, s.check_out, s.nights, s.guests_count, s.children, s.pets, s.pay_plan,
          s.total, s.paid, s.balance, s.payment_method, s.receipt_path is not null,
          s.special_requests, s.created_at,
          r.rating, r.body, r.status, r.host_reply
@@ -660,12 +742,15 @@ begin
 end $$;
 revoke all on function public.post_booking_note(uuid, uuid, text) from public, anon, authenticated;
 
+drop function if exists public.guest_send_message(text, text, date, date, int);
 create or replace function public.guest_send_message(
   p_body text,
   p_kind text default 'message',
   p_check_in date default null,
   p_check_out date default null,
-  p_guests int default null
+  p_guests int default null,
+  p_reply_to uuid default null,
+  p_attachment text default null
 ) returns uuid
 language plpgsql volatile security definer set search_path = public as $$
 declare
@@ -674,9 +759,12 @@ declare
   cid uuid;
   mid uuid;
   v_body text := trim(coalesce(p_body, ''));
+  v_file text := nullif(trim(coalesce(p_attachment, '')), '');
 begin
   if gid is null then raise exception 'Finish setting up your account to send messages.'; end if;
-  if v_body = '' then raise exception 'Write a message first.'; end if;
+  if v_body = '' and v_file is null then raise exception 'Write a message first.'; end if;
+  -- A guest's photo must sit in their own folder of the chat bucket.
+  if v_file is not null and split_part(v_file, '/', 1) <> gid::text then raise exception 'Upload the photo again.'; end if;
   if length(v_body) > 4000 then raise exception 'That message is too long. Please split it up.'; end if;
   if p_kind not in ('message','problem') then raise exception 'Unknown message type.'; end if;
   if p_kind = 'problem' and not exists (
@@ -698,8 +786,10 @@ begin
   end if;
 
   select full_name into gname from public.guests where id = gid;
-  insert into public.messages (conversation_id, author, author_name, kind, body)
-  values (cid, 'guest', gname, p_kind, v_body)
+  insert into public.messages (conversation_id, author, author_name, kind, body, reply_to, attachment_path)
+  values (cid, 'guest', gname, p_kind, v_body,
+          (select m.id from public.messages m where m.id = p_reply_to and m.conversation_id = cid),
+          v_file)
   returning id into mid;
   update public.conversations set guest_seen_at = now() where id = cid;
   return mid;
@@ -758,16 +848,21 @@ begin
   where reviews.status <> 'published';
 end $$;
 
+drop function if exists public.published_reviews();
 create or replace function public.published_reviews()
-returns table (id uuid, guest_name text, rating int, body text, host_reply text, stayed_on date, created_at timestamptz)
+returns table (id uuid, guest_name text, rating int, body text, host_reply text, stayed_on date,
+               created_at timestamptz, source text)
 language sql stable security definer set search_path = public as $$
-  select r.id, split_part(g.full_name, ' ', 1) || coalesce(' ' || left(nullif(split_part(g.full_name, ' ', 2), ''), 1) || '.', ''),
-         r.rating, r.body, r.host_reply, b.check_in, r.created_at
+  select r.id,
+         coalesce(nullif(r.reviewer_name, ''),
+           split_part(g.full_name, ' ', 1) || coalesce(' ' || left(nullif(split_part(g.full_name, ' ', 2), ''), 1) || '.', ''),
+           'Guest'),
+         r.rating, r.body, r.host_reply, coalesce(b.check_in, r.reviewed_on), r.created_at, r.source
   from public.reviews r
-  join public.guests g on g.id = r.guest_id
-  join public.bookings b on b.id = r.booking_id
+  left join public.guests g on g.id = r.guest_id
+  left join public.bookings b on b.id = r.booking_id
   where r.status = 'published'
-  order by r.created_at desc;
+  order by coalesce(r.reviewed_on, b.check_in, r.created_at::date) desc;
 $$;
 
 grant execute on function public.current_guest_id() to authenticated;
@@ -775,12 +870,118 @@ grant execute on function public.guest_save_profile(text, text) to authenticated
 grant execute on function public.my_profile() to authenticated;
 grant execute on function public.my_bookings() to authenticated;
 grant execute on function public.my_payments(uuid) to authenticated;
-grant execute on function public.guest_send_message(text, text, date, date, int) to authenticated;
+grant execute on function public.guest_send_message(text, text, date, date, int, uuid, text) to authenticated;
 grant execute on function public.guest_mark_seen() to authenticated;
 grant execute on function public.guest_cancel_booking(uuid) to authenticated;
 grant execute on function public.guest_attach_receipt(uuid, text, text) to authenticated;
 grant execute on function public.guest_save_review(uuid, int, text) to authenticated;
 grant execute on function public.published_reviews() to anon, authenticated;
+
+-- ─────────────────────────────────────────────────────────────
+-- Caught up with Malaya (November 2026)
+-- ─────────────────────────────────────────────────────────────
+
+-- A guest reacts to a message (or clears their reaction with null).
+create or replace function public.guest_react(p_message uuid, p_emoji text) returns void
+language plpgsql volatile security definer set search_path = public as $$
+begin
+  if p_emoji is not null and length(p_emoji) > 16 then raise exception 'Pick one emoji.'; end if;
+  update public.messages m
+  set reactions = case when p_emoji is null then m.reactions - 'guest'
+                       else m.reactions || jsonb_build_object('guest', p_emoji) end
+  where m.id = p_message
+    and exists (select 1 from public.conversations c
+                where c.id = m.conversation_id and c.guest_id = public.current_guest_id());
+  if not found then raise exception 'Message not found.'; end if;
+end $$;
+grant execute on function public.guest_react(uuid, text) to authenticated;
+
+-- Photos in the chat. Private: each guest's photos sit in a folder named after
+-- their guest id, which only they and the admin can open. The admin's photos
+-- to a guest go in that guest's folder too.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('chat-photos', 'chat-photos', false, 10485760, array['image/jpeg','image/png','image/webp','image/heic','image/gif'])
+on conflict (id) do nothing;
+drop policy if exists chat_photos_insert on storage.objects;
+create policy chat_photos_insert on storage.objects for insert to authenticated
+  with check (bucket_id = 'chat-photos'
+    and (public.is_admin() or (storage.foldername(name))[1] = public.current_guest_id()::text));
+drop policy if exists chat_photos_read on storage.objects;
+create policy chat_photos_read on storage.objects for select to authenticated
+  using (bucket_id = 'chat-photos'
+    and (public.is_admin() or (storage.foldername(name))[1] = public.current_guest_id()::text));
+
+-- Quick replies the system sends by itself, as the resort, when a booking is
+-- made or confirmed. {guest}, {resort}, {ref} and {dates} are filled in.
+alter table public.quick_replies add column if not exists auto_send text
+  check (auto_send in ('booking_created','booking_confirmed'));
+
+create or replace function public.bookings_auto_reply() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  ev text;
+  qr public.quick_replies;
+  g public.guests;
+  cid uuid;
+  resort text;
+  v_body text;
+begin
+  if tg_op = 'INSERT' then
+    ev := case when new.status = 'confirmed' then 'booking_confirmed' else 'booking_created' end;
+  elsif new.status = 'confirmed' and old.status = 'pending' then
+    ev := 'booking_confirmed';
+  else
+    return new;
+  end if;
+  select * into qr from public.quick_replies where auto_send = ev order by sort_order limit 1;
+  if not found then return new; end if;
+  select * into g from public.guests where id = new.guest_id;
+  select resort_name into resort from public.settings where id = 1;
+  v_body := replace(replace(replace(replace(qr.body,
+    '{guest}', coalesce(nullif(split_part(g.full_name, ' ', 1), ''), 'there')),
+    '{resort}', coalesce(resort, 'Vivienda')),
+    '{ref}', new.ref),
+    '{dates}', to_char(new.check_in, 'Mon DD') || ' – ' || to_char(new.check_out, 'Mon DD, YYYY'));
+  insert into public.conversations (guest_id) values (new.guest_id) on conflict (guest_id) do nothing;
+  select id into cid from public.conversations where guest_id = new.guest_id;
+  insert into public.messages (conversation_id, author, author_name, kind, body, booking_id, sent_at)
+  values (cid, 'host', coalesce(resort, 'Vivienda'), 'message', v_body, new.id, clock_timestamp());
+  return new;
+end $$;
+drop trigger if exists bookings_auto_reply on public.bookings;
+create trigger bookings_auto_reply after insert or update of status on public.bookings
+  for each row execute function public.bookings_auto_reply();
+
+-- The arrival guide: how to get in, the wifi, parking and the house manual.
+-- Kept out of settings (which anyone can read) and shown only to guests with
+-- a confirmed booking or a stay in progress.
+create table if not exists public.arrival_guide (
+  id int primary key default 1 check (id = 1),
+  check_in_method text not null default '',
+  wifi_name text not null default '',
+  wifi_password text not null default '',
+  parking text not null default '',
+  house_manual text not null default '',
+  emergency text not null default '',
+  updated_at timestamptz not null default now()
+);
+insert into public.arrival_guide (id) values (1) on conflict (id) do nothing;
+alter table public.arrival_guide enable row level security;
+drop policy if exists arrival_guide_admin on public.arrival_guide;
+create policy arrival_guide_admin on public.arrival_guide for all using (public.is_admin()) with check (public.is_admin());
+
+create or replace function public.my_arrival_guide(p_booking uuid)
+returns setof public.arrival_guide
+language sql stable security definer set search_path = public as $$
+  select a.* from public.arrival_guide a
+  where exists (select 1 from public.bookings b
+                where b.id = p_booking and b.guest_id = public.current_guest_id()
+                  and b.status in ('confirmed','checked_in'));
+$$;
+grant execute on function public.my_arrival_guide(uuid) to authenticated;
+
+-- The owner's daily report email (sent by the daily job to the admin notify address).
+alter table public.settings add column if not exists daily_report boolean not null default false;
 
 -- ─────────────────────────────────────────────────────────────
 -- Make the owner the admin. Replace the email, then run this line.

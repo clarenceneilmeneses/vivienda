@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -17,12 +17,13 @@ import {
   Users,
 } from "lucide-react";
 import { errorMessage, supabase } from "../../lib/supabase";
-import { useSettings, useUnits } from "../../lib/queries";
+import { useQuote, useSettings, useUnits } from "../../lib/queries";
 import { money, nightsBetween, plural, prettyDate } from "../../lib/format";
 import { sendBookingEmail } from "../../lib/email";
 import { LOCATION_LABEL } from "../../lib/site";
 import { cn } from "../../lib/utils";
-import type { PaymentMethod, Quote } from "../../lib/types";
+import type { PaymentMethod } from "../../lib/types";
+import { partyFromParams, partyLabel, partyQuery } from "../../components/public/PartyPicker";
 import { ErrorBox, Field, Input, Spinner, Textarea } from "../../components/ui";
 import { unitPhotos } from "../../components/public/StayBits";
 import { useGuestUi } from "../../components/public/GuestContext";
@@ -50,7 +51,8 @@ export default function Book() {
 
   // Dates and guests arrive from the stay page; changing them means going back there.
   const range = { checkIn: params.get("in"), checkOut: params.get("out") };
-  const guests = Math.max(1, Math.min(Number(params.get("guests")) || 2, unit?.max_guests ?? 99));
+  const party = partyFromParams(params, unit);
+  const guests = party.guests;
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -81,26 +83,7 @@ export default function Book() {
     }
   }, [isGuest, accountEmail, profile]);
 
-  const { data: quote, isFetching: quoting } = useQuery({
-    queryKey: ["quote", unit?.id, range.checkIn, range.checkOut, guests],
-    enabled: Boolean(unit && range.checkIn && range.checkOut),
-    queryFn: async (): Promise<Quote> => {
-      const { data, error } = await supabase.rpc("quote_stay", {
-        p_unit: unit!.id,
-        p_check_in: range.checkIn,
-        p_check_out: range.checkOut,
-        p_guests: guests,
-      });
-      if (error) throw error;
-      const row = (data as Quote[])[0];
-      return {
-        nights: Number(row.nights),
-        room_total: Number(row.room_total),
-        extra_guest_total: Number(row.extra_guest_total),
-        total: Number(row.total),
-      };
-    },
-  });
+  const { data: quote, isFetching: quoting } = useQuote(unit?.id, range.checkIn, range.checkOut, guests, party.pets);
 
   const hasGcash = Boolean(settings?.gcash_number);
   const hasBank = Boolean(settings?.bank_account_number);
@@ -145,12 +128,13 @@ export default function Book() {
         p_full_name: name.trim(),
         p_email: email.trim(),
         p_phone: phone.trim(),
-        p_special_requests: [requests.trim(), pay !== "later" && amount === "full" ? "Paying in full." : ""]
-          .filter(Boolean)
-          .join(" "),
+        p_special_requests: requests.trim(),
         p_payment_method: pay === "later" ? null : pay,
         p_receipt_path: receiptPath,
         p_waiver_accepted: agreed,
+        p_children: party.children,
+        p_pets: party.pets,
+        p_pay_plan: pay !== "later" && (amount === "full" || downPercent === 0 || downPercent >= 100) ? "full" : "downpayment",
       });
       if (error) throw error;
       const created = (data as { id: string; ref: string }[])[0];
@@ -173,7 +157,7 @@ export default function Book() {
 
   if (isLoading) return <Spinner className="min-h-[50vh]" />;
   if (!unit) return <Navigate to="/#stay" replace />;
-  if (!range.checkIn || !range.checkOut) return <Navigate to={`/stay/${unit.slug}?guests=${guests}`} replace />;
+  if (!range.checkIn || !range.checkOut) return <Navigate to={`/stay/${unit.slug}?${partyQuery(party)}`} replace />;
 
   const agreementText =
     settings?.waiver ||
@@ -187,7 +171,7 @@ export default function Book() {
 
   const photo = unitPhotos(unit)[0]!;
   const nights = quote?.nights ?? nightsBetween(range.checkIn, range.checkOut);
-  const backHref = `/stay/${unit.slug}?in=${range.checkIn}&out=${range.checkOut}&guests=${guests}`;
+  const backHref = `/stay/${unit.slug}?in=${range.checkIn}&out=${range.checkOut}&${partyQuery(party)}`;
   const dueNow = amount === "full" || downPercent === 0 ? (quote?.total ?? 0) : downpayment;
 
   return (
@@ -209,7 +193,7 @@ export default function Book() {
           <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-0 sm:divide-x sm:divide-sand-200">
             <Fact icon={<CalendarDays />} label="Check-in" value={prettyDate(range.checkIn, "MMM d, yyyy")} />
             <Fact icon={<CalendarDays />} label="Check-out" value={prettyDate(range.checkOut, "MMM d, yyyy")} />
-            <Fact icon={<Users />} label="Guests" value={plural(guests, "guest")} />
+            <Fact icon={<Users />} label="Guests" value={partyLabel(party)} />
             <Fact icon={<Moon />} label="Nights" value={plural(nights, "night")} />
           </dl>
         </div>
@@ -218,6 +202,17 @@ export default function Book() {
           <p className={cn("mt-1 text-3xl font-semibold text-ink", quoting && "opacity-50")}>
             {quote ? money(quote.total, true) : "—"}
           </p>
+          {quote && (quote.extra_guest_total > 0 || quote.pet_total > 0) && (
+            <p className="mt-1 text-xs text-ink-muted">
+              {[
+                quote.extra_guest_total > 0 ? `${money(quote.extra_guest_total, true)} extra guests` : null,
+                quote.pet_total > 0 ? `${money(quote.pet_total, true)} pets` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}{" "}
+              included
+            </p>
+          )}
           <p className="mt-2 border-t border-sand-200 pt-2 text-xs text-ink-muted">All amounts in PHP</p>
         </div>
       </div>
@@ -357,6 +352,13 @@ export default function Book() {
               <Info className="size-4 shrink-0" /> Any remaining balance is paid before check-in.
             </p>
             {settings?.payment_instructions && <p className="mt-3 text-sm text-ink-soft">{settings.payment_instructions}</p>}
+            <p className="mt-2 text-sm text-ink-muted">
+              New to paying by GCash or bank transfer?{" "}
+              <Link to="/how-to-pay" target="_blank" className="font-medium text-ink underline underline-offset-4">
+                See how to pay
+              </Link>
+              .
+            </p>
 
             <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-sand-300 bg-white px-4 py-4 hover:border-brand-700">
               <span className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-700/10 text-brand-700">

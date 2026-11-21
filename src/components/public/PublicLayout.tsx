@@ -156,6 +156,7 @@ function PublicShell() {
             <FooterLink to="/trips">Trips</FooterLink>
             <FooterLink to="/messages">Message us</FooterLink>
             <FooterLink to="/my-booking">Find a booking</FooterLink>
+            <FooterLink to="/how-to-pay">How to pay</FooterLink>
             <FooterLink href={facebook} external>
               Facebook page
             </FooterLink>

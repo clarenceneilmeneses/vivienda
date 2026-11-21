@@ -1,10 +1,15 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Send, Trash2 } from "lucide-react";
 import { errorMessage, supabase } from "../../lib/supabase";
 import type { QuickReply } from "../../lib/types";
-import { Button, Field, Input, Textarea } from "../ui";
+import { Badge, Button, Field, Input, Select, Textarea } from "../ui";
+
+const AUTO_LABEL: Record<NonNullable<QuickReply["auto_send"]>, string> = {
+  booking_created: "When a booking is made",
+  booking_confirmed: "When a booking is confirmed",
+};
 
 
 export function useQuickReplies() {
@@ -28,7 +33,12 @@ export function QuickRepliesManager() {
   async function save() {
     if (!editing?.title?.trim() || !editing.body?.trim()) return;
     setBusy(true);
-    const values = { title: editing.title.trim(), body: editing.body.trim() };
+    const values = { title: editing.title.trim(), body: editing.body.trim(), auto_send: editing.auto_send ?? null };
+    // One automatic reply per moment: picking it here takes it off any other.
+    if (values.auto_send) {
+      const others = replies.filter((r) => r.auto_send === values.auto_send && r.id !== editing.id);
+      if (others.length) await supabase.from("quick_replies").update({ auto_send: null }).in("id", others.map((r) => r.id));
+    }
     const { error } = editing.id
       ? await supabase.from("quick_replies").update(values).eq("id", editing.id)
       : await supabase.from("quick_replies").insert({ ...values, sort_order: replies.length });
@@ -64,6 +74,27 @@ export function QuickRepliesManager() {
               />
             )}
           </Field>
+          <Field
+            label="Send by itself"
+            hint="Posted in the guest's conversation as the resort, the moment it happens. {ref} and {dates} work here too."
+          >
+            {(id) => (
+              <Select
+                id={id}
+                value={editing.auto_send ?? ""}
+                onChange={(e) =>
+                  setEditing({ ...editing, auto_send: (e.target.value || null) as QuickReply["auto_send"] })
+                }
+              >
+                <option value="">Never, I'll pick it myself</option>
+                {Object.entries(AUTO_LABEL).map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setEditing(null)}>
               Cancel
@@ -79,7 +110,14 @@ export function QuickRepliesManager() {
             {replies.map((r) => (
               <li key={r.id} className="flex items-start gap-3 py-3.5">
                 <button type="button" onClick={() => setEditing(r)} className="min-w-0 flex-1 cursor-pointer text-left">
-                  <span className="block text-sm font-medium text-ink">{r.title}</span>
+                  <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
+                    {r.title}
+                    {r.auto_send && (
+                      <Badge className="bg-brand-50 text-brand-700">
+                        <Send className="mr-1 size-3" /> {AUTO_LABEL[r.auto_send]}
+                      </Badge>
+                    )}
+                  </span>
                   <span className="mt-0.5 line-clamp-2 text-sm text-ink-muted">{r.body}</span>
                 </button>
                 <button
@@ -94,7 +132,7 @@ export function QuickRepliesManager() {
             ))}
             {replies.length === 0 && <li className="py-6 text-center text-sm text-ink-muted">No quick replies yet.</li>}
           </ul>
-          <Button className="mt-4" variant="secondary" onClick={() => setEditing({ title: "", body: "" })}>
+          <Button className="mt-4" variant="secondary" onClick={() => setEditing({ title: "", body: "", auto_send: null })}>
             <Plus className="size-4" /> Add quick reply
           </Button>
         </>

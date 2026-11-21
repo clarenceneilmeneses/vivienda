@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Clock,
   Copy,
+  KeyRound,
   MapPin,
   MessageCircle,
   Navigation,
@@ -16,10 +17,21 @@ import {
   Star,
   Upload,
   Users,
+  Wifi,
   XCircle,
 } from "lucide-react";
 import { useSettings } from "../../lib/queries";
-import { useAttachReceipt, useCancelTrip, useMyTrips, useSaveReview, useTripPayments, type Trip } from "../../lib/guest";
+import {
+  useArrivalGuide,
+  useAttachReceipt,
+  useCancelTrip,
+  useMyTrips,
+  useSaveReview,
+  useTripPayments,
+  balanceDue,
+  type Trip,
+} from "../../lib/guest";
+import { partyLabel } from "../../components/public/PartyPicker";
 import { isoDate, money, plural, prettyDate, prettyTime } from "../../lib/format";
 import { errorMessage } from "../../lib/supabase";
 import { SITE } from "../../lib/site";
@@ -113,7 +125,11 @@ function TripBody() {
               </div>
             </div>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-              <Row icon={<Users />} label="Guests" value={plural(t.guests_count, "guest")} />
+              <Row
+                icon={<Users />}
+                label="Guests"
+                value={partyLabel({ guests: t.guests_count, children: t.children ?? 0, pets: t.pets ?? 0 })}
+              />
               <Row icon={<CalendarDays />} label="Length" value={plural(t.nights, "night")} />
               <Row
                 icon={<Copy />}
@@ -137,6 +153,8 @@ function TripBody() {
               </p>
             )}
           </Section>
+
+          <ArrivalGuideSection trip={t} />
 
           {live && (
             <Section title="Getting there">
@@ -245,7 +263,9 @@ function PaymentCard({ trip: t }: { trip: Trip }) {
   const [method, setMethod] = useState<PaymentMethod>(t.payment_method ?? "gcash");
   const owing = t.balance > 0.009 && ["pending", "confirmed", "checked_in"].includes(t.status);
   const down = Math.ceil((t.total * (settings?.downpayment_percent ?? 50)) / 100);
-  const dueNow = t.paid > 0 ? t.balance : Math.min(down, t.balance);
+  const full = t.pay_plan === "full";
+  const dueNow = t.paid > 0 || full ? t.balance : Math.min(down, t.balance);
+  const due = balanceDue(t);
 
   return (
     <div className="rounded-2xl border border-sand-200 bg-white p-5 shadow-level-2">
@@ -275,8 +295,15 @@ function PaymentCard({ trip: t }: { trip: Trip }) {
       {owing && (
         <div className="mt-4 space-y-3 border-t border-sand-200 pt-4">
           <p className="text-sm text-ink-soft">
-            {t.paid > 0 ? "Pay the balance before check-in." : `Send at least ${money(dueNow, true)} to secure your dates.`}
+            {t.paid > 0
+              ? `Pay the ${money(t.balance, true)} balance by ${prettyDate(due, "EEE, MMM d")}.`
+              : full
+                ? `Send ${money(dueNow, true)} to pay in full and secure your dates.`
+                : `Send at least ${money(dueNow, true)} to secure your dates. The rest is due by ${prettyDate(due, "MMM d")}.`}
           </p>
+          <Link to="/how-to-pay" className="block text-xs font-medium text-ink underline underline-offset-4">
+            How to pay by GCash or bank transfer
+          </Link>
           {(settings?.gcash_number || settings?.bank_account_number) && (
             <dl className="divide-y divide-sand-200 rounded-xl bg-sand-100 text-xs">
               {settings.gcash_number && (
@@ -481,5 +508,59 @@ function Collapsible({ title, body }: { title: string; body: string }) {
       </button>
       {open && <p className="pb-4 text-sm leading-relaxed whitespace-pre-line text-ink-soft">{body}</p>}
     </div>
+  );
+}
+
+/** Check-in method, wifi, parking and the house manual, once the booking is confirmed. */
+function ArrivalGuideSection({ trip: t }: { trip: Trip }) {
+  const ready = t.status === "confirmed" || t.status === "checked_in";
+  const { data: guide } = useArrivalGuide(t.id, ready);
+  if (!ready || !guide) return null;
+  const copy = (v: string) => void navigator.clipboard?.writeText(v).then(() => toast.success("Copied"));
+  return (
+    <Section title="Arrival guide">
+      <div className="space-y-4">
+        {guide.check_in_method && (
+          <div className="flex items-start gap-3 rounded-2xl border border-sand-200 p-4">
+            <KeyRound className="mt-0.5 size-5 shrink-0 text-brand-700" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink">How to check in</p>
+              <p className="mt-1 text-sm leading-relaxed whitespace-pre-line text-ink-soft">{guide.check_in_method}</p>
+            </div>
+          </div>
+        )}
+        {(guide.wifi_name || guide.wifi_password) && (
+          <div className="flex items-start gap-3 rounded-2xl border border-sand-200 p-4">
+            <Wifi className="mt-0.5 size-5 shrink-0 text-brand-700" />
+            <dl className="grid min-w-0 flex-1 gap-2 text-sm sm:grid-cols-2">
+              {guide.wifi_name && (
+                <div>
+                  <dt className="text-xs text-ink-muted">Wifi network</dt>
+                  <dd className="font-medium text-ink">{guide.wifi_name}</dd>
+                </div>
+              )}
+              {guide.wifi_password && (
+                <div>
+                  <dt className="text-xs text-ink-muted">Password</dt>
+                  <dd>
+                    <button
+                      type="button"
+                      onClick={() => copy(guide.wifi_password)}
+                      className="cursor-pointer font-mono font-medium text-ink underline decoration-dotted underline-offset-4"
+                      title="Copy the password"
+                    >
+                      {guide.wifi_password}
+                    </button>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        )}
+        {guide.parking && <Collapsible title="Parking" body={guide.parking} />}
+        {guide.house_manual && <Collapsible title="House manual" body={guide.house_manual} />}
+        {guide.emergency && <Collapsible title="Emergencies and contacts" body={guide.emergency} />}
+      </div>
+    </Section>
   );
 }

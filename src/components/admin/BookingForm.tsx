@@ -4,7 +4,7 @@ import { addYears, eachDayOfInterval, parseISO, subDays } from "date-fns";
 import { toast } from "sonner";
 import { UserPlus, Users } from "lucide-react";
 import { errorMessage, supabase } from "../../lib/supabase";
-import { useUnavailableNights, useUnits } from "../../lib/queries";
+import { minNightsFor, useQuote, useStayMinimums, useUnavailableNights, useUnits } from "../../lib/queries";
 import { isoDate, money, plural, stayRange } from "../../lib/format";
 import { sendBookingEmail } from "../../lib/email";
 import { cn } from "../../lib/utils";
@@ -14,7 +14,6 @@ import {
   type BookingStatus,
   type BookingSummary,
   type Guest,
-  type Quote,
 } from "../../lib/types";
 import { RangeCalendar, type DateRange } from "../RangeCalendar";
 import { Button, ErrorBox, Field, Input, Modal, Select, Textarea } from "../ui";
@@ -65,6 +64,8 @@ function BookingFormInner({
     checkOut: booking?.check_out ?? preset?.checkOut ?? null,
   });
   const [guestsCount, setGuestsCount] = useState(booking?.guests_count ?? preset?.guests ?? 2);
+  const [children, setChildren] = useState(booking?.children ?? 0);
+  const [pets, setPets] = useState(booking?.pets ?? 0);
   const [source, setSource] = useState<BookingSource>(booking?.source ?? preset?.source ?? "facebook");
   const [status, setStatus] = useState<BookingStatus>(booking?.status ?? preset?.status ?? "confirmed");
   const [guestMode, setGuestMode] = useState<"existing" | "new">(booking || preset?.guestId ? "existing" : "new");
@@ -118,21 +119,10 @@ function BookingFormInner({
   }, [guests, guestSearch]);
   const selectedGuest = guests?.find((g) => g.id === guestId);
 
-  const { data: quote } = useQuery({
-    queryKey: ["quote", unitId, range.checkIn, range.checkOut, guestsCount],
-    enabled: Boolean(unitId && range.checkIn && range.checkOut),
-    queryFn: async (): Promise<Quote> => {
-      const { data, error } = await supabase.rpc("quote_stay", {
-        p_unit: unitId,
-        p_check_in: range.checkIn,
-        p_check_out: range.checkOut,
-        p_guests: guestsCount,
-      });
-      if (error) throw error;
-      const r = (data as Quote[])[0];
-      return { nights: r.nights, room_total: Number(r.room_total), extra_guest_total: Number(r.extra_guest_total), total: Number(r.total) };
-    },
-  });
+  const { data: quote } = useQuote(unitId, range.checkIn, range.checkOut, guestsCount, pets);
+  const { data: minimums } = useStayMinimums(unitId);
+  const minStay = unit && range.checkIn ? minNightsFor(unit, range.checkIn, minimums) : 1;
+  const nights = range.checkIn && range.checkOut ? (quote?.nights ?? 0) : 0;
 
   const discountNum = Math.max(0, Number(discount) || 0);
   const computedTotal = quote ? Math.max(0, quote.total - discountNum) : null;
@@ -143,6 +133,7 @@ function BookingFormInner({
     setError(null);
     if (!unitId) return setError("Pick a room.");
     if (!range.checkIn || !range.checkOut) return setError("Pick check-in and check-out dates.");
+    if (children >= guestsCount) return setError("At least one adult must be on the booking.");
     if (guestMode === "existing" && !guestId) return setError("Pick a guest, or add a new one.");
     if (guestMode === "new" && !newName.trim()) return setError("Enter the guest's name.");
     if (total == null) return setError("Waiting for the price…");
@@ -172,6 +163,9 @@ function BookingFormInner({
         check_in: range.checkIn,
         check_out: range.checkOut,
         guests_count: guestsCount,
+        children,
+        pets,
+        pet_total: quote?.pet_total ?? 0,
         source,
         subtotal: quote?.total ?? total,
         discount: discountNum,
@@ -249,7 +243,7 @@ function BookingFormInner({
               </Select>
             )}
           </Field>
-          <Field label="Guests" hint={unit ? `Fits ${unit.max_guests}` : undefined}>
+          <Field label="Guests" hint={unit ? `Head count, fits ${unit.max_guests}` : undefined}>
             {(id) => (
               <Input
                 id={id}
@@ -258,6 +252,27 @@ function BookingFormInner({
                 value={guestsCount}
                 onChange={(e) => setGuestsCount(Math.max(1, Number(e.target.value) || 1))}
               />
+            )}
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Of whom children" hint="Ages 2–12">
+            {(id) => (
+              <Input
+                id={id}
+                type="number"
+                min={0}
+                value={children}
+                onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
+              />
+            )}
+          </Field>
+          <Field
+            label="Pets"
+            hint={unit && unit.pet_fee > 0 ? `${money(unit.pet_fee, true)} each for the stay` : "No pet fee set"}
+          >
+            {(id) => (
+              <Input id={id} type="number" min={0} value={pets} onChange={(e) => setPets(Math.max(0, Number(e.target.value) || 0))} />
             )}
           </Field>
         </div>
@@ -272,7 +287,8 @@ function BookingFormInner({
           />
           <p className="mt-2 text-center text-sm text-ink-soft">
             {range.checkIn && range.checkOut
-              ? `${stayRange(range.checkIn, range.checkOut)} · ${plural(quote?.nights ?? 0, "night")}`
+              ? `${stayRange(range.checkIn, range.checkOut)} · ${plural(quote?.nights ?? 0, "night")}` +
+                (nights > 0 && nights < minStay ? ` · shorter than the ${minStay}-night minimum guests get` : "")
               : range.checkIn
                 ? "Now pick the check-out date"
                 : "Pick the check-in date"}
@@ -372,6 +388,12 @@ function BookingFormInner({
             <div className="text-sm">
               <p className="text-ink-muted">Rate for these dates</p>
               <p className="mt-1 text-lg font-semibold">{quote ? money(quote.total) : "—"}</p>
+              {quote && (quote.extra_guest_total > 0 || quote.pet_total > 0) && (
+                <p className="text-xs text-ink-muted">
+                  {quote.extra_guest_total > 0 && `incl. ${money(quote.extra_guest_total, true)} extra guests `}
+                  {quote.pet_total > 0 && `incl. ${money(quote.pet_total, true)} pets`}
+                </p>
+              )}
             </div>
             <Field label="Discount (₱)">
               {(id) => (

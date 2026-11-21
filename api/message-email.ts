@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     .single();
   const { data: latest } = await db
     .from("messages")
-    .select("author, body, sent_at")
+    .select("author, body, sent_at, attachment_path")
     .eq("conversation_id", conversation.id)
     .is("unsent_at", null)
     .order("sent_at", { ascending: false })
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
   }
 
   const quote = `<blockquote style="margin:0 0 12px;padding:12px 16px;border-left:3px solid #7b4821;background:#fbfaf8;font-size:15px;line-height:1.6;color:#3d3d3d;white-space:pre-line">${esc(
-    latest.body.length > 600 ? `${latest.body.slice(0, 600)}…` : latest.body,
+    !latest.body ? "📷 Sent a photo" : latest.body.length > 600 ? `${latest.body.slice(0, 600)}…` : latest.body,
   )}</blockquote>`;
   const email =
     direction === "to_host"

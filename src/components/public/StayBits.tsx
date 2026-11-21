@@ -4,7 +4,15 @@ import { cn } from "../../lib/utils";
 import type { PublishedReview } from "../../lib/guest";
 import { photoUrl } from "../../lib/supabase";
 import { GALLERY } from "../../lib/site";
-import type { Unit } from "../../lib/types";
+import { REVIEW_SOURCE_LABEL, type ReviewSource, type Unit } from "../../lib/types";
+
+const SOURCE_STYLE: Record<ReviewSource, string> = {
+  website: "bg-emerald-50 text-emerald-800",
+  airbnb: "bg-[#ff385c]/10 text-[#d70466]",
+  google: "bg-[#4285f4]/10 text-[#1a56c4]",
+  facebook: "bg-[#1877f2]/10 text-[#1259b8]",
+  other: "bg-sand-100 text-ink-soft",
+};
 
 /** The stay's own photos first, then the rest of the property's, so a gallery is never short. */
 export function unitPhotos(unit: Unit): string[] {
@@ -48,14 +56,23 @@ export function Stars({ rating, className }: { rating: number; className?: strin
   );
 }
 
-/** A review a guest left on the site after their stay, published by the owner. */
+/**
+ * A published review: one a guest left on the site after their stay, or one
+ * the owner brought over from Airbnb, Google or Facebook, marked with where.
+ */
 export function GuestReviewCard({ review }: { review: PublishedReview }) {
+  const source = review.source ?? "website";
   return (
     <figure className="flex h-full flex-col rounded-xl border border-sand-200/60 bg-white p-6 shadow-level-1">
       <div className="flex items-center justify-between gap-3">
         <Stars rating={review.rating} />
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
-          Verified stay
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            SOURCE_STYLE[source],
+          )}
+        >
+          {source === "website" ? "Verified stay" : `via ${REVIEW_SOURCE_LABEL[source]}`}
         </span>
       </div>
       <blockquote className="mt-4 line-clamp-7 flex-1 text-sm leading-relaxed text-ink-muted" title={review.body}>
@@ -74,7 +91,7 @@ export function GuestReviewCard({ review }: { review: PublishedReview }) {
         <span className="min-w-0">
           <span className="block truncate text-sm font-medium text-ink">{review.guest_name}</span>
           <span className="block truncate text-xs text-ink-muted">
-            Stayed {format(parseISO(review.stayed_on), "MMMM yyyy")}
+            {review.stayed_on ? `Stayed ${format(parseISO(review.stayed_on), "MMMM yyyy")}` : REVIEW_SOURCE_LABEL[source]}
           </span>
         </span>
       </figcaption>

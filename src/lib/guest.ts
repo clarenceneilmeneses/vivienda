@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { addDays, format, parseISO } from "date-fns";
 import { supabase } from "./supabase";
 import { useAuth } from "./auth";
-import type { BookingStatus, Conversation, Message, PaymentMethod } from "./types";
+import type { ArrivalGuide, BookingStatus, Conversation, Message, PaymentMethod, PayPlan, ReviewSource } from "./types";
+import { uploadChatPhoto } from "../components/MessageThread";
 
 /**
  * The guest side of the site: the signed-in guest's profile, trips, the one
@@ -29,6 +31,9 @@ export interface Trip {
   check_out: string;
   nights: number;
   guests_count: number;
+  children: number | null;
+  pets: number | null;
+  pay_plan: PayPlan | null;
   total: number;
   paid: number;
   balance: number;
@@ -48,8 +53,10 @@ export interface PublishedReview {
   rating: number;
   body: string;
   host_reply: string;
-  stayed_on: string;
+  stayed_on: string | null;
   created_at: string;
+  /** Where it was written. Older databases leave this out: the website. */
+  source?: ReviewSource;
 }
 
 /** Signed in, and not the owner. The admin account never becomes a guest. */
@@ -146,7 +153,12 @@ export function splitTrips(trips: Trip[], today: string) {
 // ───────────────────────── messages ─────────────────────────
 
 export function normalizeMessage(m: Record<string, unknown>): Message {
-  return m as unknown as Message;
+  return {
+    ...(m as unknown as Message),
+    reply_to: (m.reply_to as string) ?? null,
+    reactions: (m.reactions as Message["reactions"]) ?? {},
+    attachment_path: (m.attachment_path as string) ?? null,
+  };
 }
 
 /** The guest's conversation and every message in it. */
@@ -210,19 +222,56 @@ export interface Inquiry {
 
 export function useSendGuestMessage() {
   const qc = useQueryClient();
+  const profile = useGuestProfile();
   return useMutation({
-    mutationFn: async (v: { body: string; kind?: "message" | "problem"; inquiry?: Inquiry | null }) => {
+    mutationFn: async (v: {
+      body: string;
+      kind?: "message" | "problem";
+      inquiry?: Inquiry | null;
+      replyTo?: string | null;
+      photo?: File | null;
+    }) => {
+      const attachment = v.photo && profile.data ? await uploadChatPhoto(profile.data.id, v.photo) : null;
       const { error } = await supabase.rpc("guest_send_message", {
         p_body: v.body,
         p_kind: v.kind ?? "message",
         p_check_in: v.inquiry?.checkIn ?? null,
         p_check_out: v.inquiry?.checkOut ?? null,
         p_guests: v.inquiry?.guests ?? null,
+        p_reply_to: v.replyTo ?? null,
+        p_attachment: attachment,
       });
       if (error) throw error;
       void notifyMessage("to_host");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["guest", "thread"] }),
+  });
+}
+
+export function useGuestReact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { messageId: string; emoji: string | null }) => {
+      const { error } = await supabase.rpc("guest_react", { p_message: v.messageId, p_emoji: v.emoji });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["guest", "thread"] }),
+  });
+}
+
+/** Check-in method, wifi and house manual: only for a confirmed booking or a stay in progress. */
+export function useArrivalGuide(bookingId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["guest", "arrival-guide", bookingId],
+    enabled: Boolean(bookingId) && enabled,
+    queryFn: async (): Promise<ArrivalGuide | null> => {
+      const { data, error } = await supabase.rpc("my_arrival_guide", { p_booking: bookingId });
+      if (error) return null;
+      const g = ((data ?? []) as ArrivalGuide[])[0];
+      if (!g) return null;
+      const filled = [g.check_in_method, g.wifi_name, g.wifi_password, g.parking, g.house_manual, g.emergency].some((v) => v?.trim());
+      return filled ? g : null;
+    },
   });
 }
 
@@ -339,3 +388,10 @@ export function usePublishedReviews() {
     },
   });
 }
+
+/** The balance is due the day before check-in (or on the day, for a same-day booking). */
+export function balanceDue(t: Pick<Trip, "check_in" | "created_at">) {
+  const dayBefore = addDays(parseISO(t.check_in), -1);
+  return format(dayBefore < parseISO(t.created_at.slice(0, 10)) ? parseISO(t.check_in) : dayBefore, "yyyy-MM-dd");
+}
+

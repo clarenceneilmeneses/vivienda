@@ -267,21 +267,24 @@ export function Stepper({
   min,
   max,
   onChange,
+  label = "guests",
 }: {
   value: number;
   min: number;
   max: number;
   onChange: (n: number) => void;
+  /** What is being counted, for screen readers: "Fewer adults". */
+  label?: string;
 }) {
   const btn =
     "grid size-8 cursor-pointer place-items-center rounded-full border border-sand-300 text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-30";
   return (
     <div className="flex items-center gap-3">
-      <button type="button" className={btn} disabled={value <= min} onClick={() => onChange(value - 1)} aria-label="Fewer guests">
+      <button type="button" className={btn} disabled={value <= min} onClick={() => onChange(value - 1)} aria-label={"Fewer " + label}>
         <Minus className="size-3.5" />
       </button>
       <output className="w-6 text-center text-sm font-medium tabular-nums">{value}</output>
-      <button type="button" className={btn} disabled={value >= max} onClick={() => onChange(value + 1)} aria-label="More guests">
+      <button type="button" className={btn} disabled={value >= max} onClick={() => onChange(value + 1)} aria-label={"More " + label}>
         <Plus className="size-3.5" />
       </button>
     </div>

@@ -114,6 +114,10 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
   const [photos, setPhotos] = useState<string[]>(unit?.photos ?? []);
   const [isActive, setIsActive] = useState(unit?.is_active ?? true);
   const [sortOrder, setSortOrder] = useState(String(unit?.sort_order ?? 0));
+  const [maxPets, setMaxPets] = useState(String(unit?.max_pets ?? 0));
+  const [petFee, setPetFee] = useState(String(unit?.pet_fee ?? 0));
+  const [minNights, setMinNights] = useState(String(unit?.min_nights ?? 1));
+  const [tourUrl, setTourUrl] = useState(unit?.tour_video_url ?? "");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,6 +160,9 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
     if (!(Number(baseRate) >= 0) || baseRate === "") return setError("Set the nightly rate.");
     if (!(cap >= 1)) return setError("Included guests must be at least 1.");
     if (max < cap) return setError("Max guests can't be lower than included guests.");
+    const minStay = Number(minNights) || 1;
+    if (minStay < 1 || minStay > 30) return setError("The minimum stay is between 1 and 30 nights.");
+    if (tourUrl.trim() && !/^https?:\/\//.test(tourUrl.trim())) return setError("Paste the full video link, starting with https://");
     setSaving(true);
     const row = {
       name: name.trim(),
@@ -173,6 +180,10 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
       photos,
       is_active: isActive,
       sort_order: Number(sortOrder) || 0,
+      max_pets: Math.max(0, Number(maxPets) || 0),
+      pet_fee: Math.max(0, Number(petFee) || 0),
+      min_nights: minStay,
+      tour_video_url: tourUrl.trim(),
     };
     const { error } = unit
       ? await supabase.from("units").update(row).eq("id", unit.id)
@@ -256,6 +267,22 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
             {(id) => <Input id={id} type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />}
           </Field>
         </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Minimum stay (nights)" hint="Longer minimums for holidays: Calendar">
+            {(id) => <Input id={id} type="number" min={1} max={30} value={minNights} onChange={(e) => setMinNights(e.target.value)} />}
+          </Field>
+          <Field label="Pets allowed" hint="0 = no pets">
+            {(id) => <Input id={id} type="number" min={0} value={maxPets} onChange={(e) => setMaxPets(e.target.value)} />}
+          </Field>
+          <Field label="Pet fee (₱)" hint="Per pet, for the whole stay">
+            {(id) => <Input id={id} type="number" min={0} value={petFee} onChange={(e) => setPetFee(e.target.value)} />}
+          </Field>
+        </div>
+
+        <Field label="Video tour link" optional hint="A YouTube, Facebook or TikTok link. Shows “Watch the full tour” on the listing.">
+          {(id) => <Input id={id} type="url" value={tourUrl} onChange={(e) => setTourUrl(e.target.value)} placeholder="https://" />}
+        </Field>
 
         <Field label="Amenities" optional hint="Separate with commas: Aircon, Wi-Fi, Private pool, Kitchen">
           {(id) => <Input id={id} value={amenities} onChange={(e) => setAmenities(e.target.value)} />}

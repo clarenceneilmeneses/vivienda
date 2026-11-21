@@ -2,8 +2,8 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, CalendarCheck, ChevronRight, Lock, Luggage, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../lib/auth";
-import { splitTrips, useMyTrips, type Trip } from "../../lib/guest";
-import { isoDate, money, plural, stayRange } from "../../lib/format";
+import { balanceDue, splitTrips, useMyTrips, type Trip } from "../../lib/guest";
+import { isoDate, money, plural, prettyDate, stayRange } from "../../lib/format";
 import { errorMessage, photoUrl } from "../../lib/supabase";
 import { PHOTOS } from "../../lib/site";
 import { cn } from "../../lib/utils";
@@ -141,6 +141,7 @@ export function tripPhoto(t: Pick<Trip, "unit_photo">) {
 function TripCard({ trip: t }: { trip: Trip }) {
   const owing = t.balance > 0.009 && !["cancelled", "declined"].includes(t.status);
   const reviewable = t.status === "checked_out" && !t.review_rating;
+  const payable = owing && ["pending", "confirmed", "checked_in"].includes(t.status);
   return (
     <Link
       to={`/trips/${t.ref}`}
@@ -157,10 +158,23 @@ function TripCard({ trip: t }: { trip: Trip }) {
           {t.ref} · {plural(t.nights, "night")} · {plural(t.guests_count, "guest")}
         </p>
         <div className="mt-auto flex items-center justify-between gap-2 pt-3 text-sm">
-          <span className={cn("font-medium", owing ? "text-terra-600" : "text-ink-muted")}>
-            {owing ? `${money(t.balance, true)} balance` : reviewable ? "Leave a review" : money(t.total, true)}
+          <span className={cn("min-w-0 font-medium", owing ? "text-terra-600" : "text-ink-muted")}>
+            {owing ? (
+              <>
+                {money(t.balance, true)} due
+                {payable && <span className="block text-xs font-normal text-ink-muted">by {prettyDate(balanceDue(t), "MMM d")}</span>}
+              </>
+            ) : reviewable ? (
+              "Leave a review"
+            ) : (
+              money(t.total, true)
+            )}
           </span>
-          <ChevronRight className="size-4 text-ink-muted transition-transform group-hover:translate-x-0.5" />
+          {payable ? (
+            <span className="shrink-0 rounded-full bg-brand-700 px-3 py-1 text-xs font-semibold text-sand-50">Pay</span>
+          ) : (
+            <ChevronRight className="size-4 text-ink-muted transition-transform group-hover:translate-x-0.5" />
+          )}
         </div>
       </div>
     </Link>

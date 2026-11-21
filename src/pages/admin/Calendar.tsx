@@ -30,7 +30,24 @@ import { BookingForm, type BookingPreset } from "../../components/admin/BookingF
  */
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const REASONS = ["Maintenance", "Owner use", "Private event", "Other"];
+// Bookings taken elsewhere close nights too, so the website can't double-book them (as in Malaya).
+const REASONS = [
+  "Facebook booking",
+  "Instagram booking",
+  "TikTok booking",
+  "Walk-in",
+  "Maintenance",
+  "Owner use",
+  "Private event",
+  "Collaboration",
+  "Other",
+];
+
+interface Closed {
+  reason: string;
+  by: string | null;
+  at: string | null;
+}
 
 interface Sel {
   start: string;
@@ -164,6 +181,7 @@ export default function Calendar() {
       byNight={byNight}
       blocked={extras?.blocked ?? new Map()}
       overrides={extras?.rates ?? new Map()}
+      minimums={extras?.minimums ?? new Map()}
       onClear={() => setSelection(null)}
       onOpenBooking={setOpenBooking}
       onCreate={() =>
@@ -213,8 +231,10 @@ export default function Calendar() {
             {days.map((date) => {
               const inMonth = date.startsWith(monthKey);
               const booking = byNight.get(date);
-              const reason = extras?.blocked.get(date);
-              const closed = reason !== undefined && !booking;
+              const block = extras?.blocked.get(date);
+              const reason = block?.reason;
+              const closed = block !== undefined && !booking;
+              const longMin = extras?.minimums.get(date);
               const special = extras?.rates.has(date);
               const price = nightlyRate(unit, date, extras?.rates);
               const selected = Boolean(selection && date >= selection.start && date <= selection.end);
@@ -230,8 +250,8 @@ export default function Calendar() {
                     booking
                       ? `${booking.guest_name} · ${stayRange(booking.check_in, booking.check_out)}`
                       : closed
-                        ? `${reason || "Closed"} — not bookable`
-                        : money(price, true)
+                        ? `${reason || "Closed"} — not bookable${block?.by ? ` · closed by ${block.by}` : ""}${block?.at ? ` on ${format(parseISO(block.at), "MMM d")}` : ""}`
+                        : `${money(price, true)}${longMin ? ` · ${longMin}-night minimum from this date` : ""}`
                   }
                   onPointerDown={(e) => !booking && drag.onDown(date, e)}
                   onClick={() => {
@@ -299,6 +319,17 @@ export default function Calendar() {
                       {compactMoney(price)}
                     </span>
                   )}
+                  {longMin && !booking && !closed && (
+                    <span
+                      className={cn(
+                        "absolute top-1.5 right-1.5 hidden rounded-full bg-sand-100 px-1.5 text-[10px] font-semibold text-ink-soft sm:block",
+                        special && "right-6",
+                        selected && "bg-white/20 text-white",
+                      )}
+                    >
+                      {longMin}n
+                    </span>
+                  )}
                   {special && !booking && !closed && (
                     <Tag className={cn("absolute top-2 right-2 hidden size-3 text-terra-500 sm:block", selected && "text-white")} />
                   )}
@@ -341,15 +372,23 @@ function useCalendarExtras(unitId: string | undefined, from: string, to: string)
     queryKey: ["calendar-extras", unitId, from, to],
     enabled: Boolean(unitId),
     queryFn: async () => {
-      const [blocked, rates] = await Promise.all([
-        supabase.from("blocked_dates").select("date, reason").eq("unit_id", unitId!).gte("date", from).lte("date", to),
+      const [blocked, rates, minimums] = await Promise.all([
+        supabase.from("blocked_dates").select("*").eq("unit_id", unitId!).gte("date", from).lte("date", to),
         supabase.from("rate_overrides").select("date, rate").eq("unit_id", unitId!).gte("date", from).lte("date", to),
+        supabase.from("stay_minimums").select("date, min_nights").eq("unit_id", unitId!).gte("date", from).lte("date", to),
       ]);
       if (blocked.error) throw blocked.error;
       if (rates.error) throw rates.error;
       return {
-        blocked: new Map(blocked.data.map((b) => [b.date as string, (b.reason as string) ?? ""])),
+        blocked: new Map<string, Closed>(
+          blocked.data.map((b) => [
+            b.date as string,
+            { reason: (b.reason as string) ?? "", by: (b.closed_by as string) ?? null, at: (b.created_at as string) ?? null },
+          ]),
+        ),
         rates: new Map(rates.data.map((r) => [r.date as string, Number(r.rate)])),
+        // Before the November SQL runs there's no minimums table; the calendar just shows none.
+        minimums: new Map((minimums.data ?? []).map((m) => [m.date as string, Number(m.min_nights)])),
       };
     },
   });
@@ -396,6 +435,9 @@ function ResortPanel({
             +{money(unit.extra_guest_fee, true)} a night per guest over {unit.capacity}
           </p>
         )}
+        <p className="text-xs text-ink-muted">
+          Minimum stay {plural(unit.min_nights, "night")}. Select dates to set a longer one for holidays.
+        </p>
       </div>
       <div className={card}>
         <p className="text-sm font-semibold text-ink">How to edit</p>
@@ -411,6 +453,9 @@ function ResortPanel({
           <Legend className="hatch bg-sand-100">Closed</Legend>
           <li className="flex items-center gap-1.5">
             <Tag className="size-3 text-terra-500" /> Special price
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="rounded-full bg-sand-100 px-1 text-[10px] font-semibold text-ink-soft">3n</span> Minimum stay
           </li>
         </ul>
       </div>
@@ -441,6 +486,7 @@ function SelectionPanel({
   byNight,
   blocked,
   overrides,
+  minimums,
   onClear,
   onOpenBooking,
   onCreate,
@@ -448,8 +494,9 @@ function SelectionPanel({
   unit: Unit;
   selection: Sel;
   byNight: Map<string, BookingSummary>;
-  blocked: Map<string, string>;
+  blocked: Map<string, Closed>;
   overrides: Map<string, number>;
+  minimums: Map<string, number>;
   onClear: () => void;
   onOpenBooking: (id: string) => void;
   onCreate: () => void;
@@ -470,13 +517,22 @@ function SelectionPanel({
   const [reason, setReason] = useState(REASONS[0]!);
   const [price, setPrice] = useState(String(lo));
   const [busy, setBusy] = useState(false);
+  const setMins = nights.filter((d) => minimums.has(d));
+  const [minStay, setMinStay] = useState(String(minimums.get(selection.start) ?? Math.max(2, unit.min_nights)));
   const key = `${selection.start}|${selection.end}`;
   useEffect(() => {
     setBlocking(false);
     setPrice(String(lo));
+    setMinStay(String(minimums.get(selection.start) ?? Math.max(2, unit.min_nights)));
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closers = [...new Set(closed.map((d) => blocked.get(d)).filter(Boolean).map((c) => c!.by).filter(Boolean))] as string[];
+  const reasons = [...new Set(closed.map((d) => blocked.get(d)?.reason).filter(Boolean))] as string[];
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["calendar-extras"] }).then(() => qc.invalidateQueries({ queryKey: ["unavailable"] }));
+  const refresh = () =>
+    qc
+      .invalidateQueries({ queryKey: ["calendar-extras"] })
+      .then(() => qc.invalidateQueries({ queryKey: ["unavailable"] }))
+      .then(() => qc.invalidateQueries({ queryKey: ["stay_minimums"] }));
 
   async function run(task: () => PromiseLike<{ error: unknown }>, done: string) {
     setBusy(true);
@@ -548,6 +604,12 @@ function SelectionPanel({
               </button>
             </div>
           </div>
+          {closed.length > 0 && (reasons.length > 0 || closers.length > 0) && (
+            <p className="mt-2 text-xs text-ink-muted">
+              {reasons.join(", ") || "Closed"}
+              {closers.length > 0 && ` · closed by ${closers.join(", ")}`}
+            </p>
+          )}
           {closed.length > 0 && !allClosed && (
             <p className="mt-2 text-xs text-ink-muted">
               {closed.length} of these nights {closed.length === 1 ? "is" : "are"} closed. ✓ opens {closed.length === 1 ? "it" : "them"}.
@@ -650,6 +712,59 @@ function SelectionPanel({
           )}
         </div>
       )}
+
+      <div className={card}>
+        <p className="text-sm font-semibold text-ink">Minimum stay</p>
+        <p className="mt-0.5 text-xs text-ink-muted">
+          For guests checking in on {nights.length === 1 ? "this date" : "these dates"}.
+          {setMins.length > 0 ? ` ${setMins.length} already set.` : ` Standard is ${plural(unit.min_nights, "night")}.`}
+        </p>
+        <div className="mt-3 flex items-center gap-2">
+          <Input
+            type="number"
+            min={1}
+            max={30}
+            value={minStay}
+            onChange={(e) => setMinStay(e.target.value)}
+            className="w-24 text-base font-semibold"
+            aria-label="Minimum nights"
+          />
+          <span className="text-sm text-ink-muted">nights</span>
+          <Button
+            className="ml-auto"
+            loading={busy}
+            disabled={!(Number(minStay) >= 1 && Number(minStay) <= 30)}
+            onClick={() =>
+              run(
+                () =>
+                  supabase
+                    .from("stay_minimums")
+                    .upsert(nights.map((date) => ({ unit_id: unit.id, date, min_nights: Number(minStay) })), {
+                      onConflict: "unit_id,date",
+                    }),
+                `${minStay}-night minimum for ${plural(nights.length, "check-in date")}`,
+              )
+            }
+          >
+            Save
+          </Button>
+        </div>
+        {setMins.length > 0 && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              run(
+                () => supabase.from("stay_minimums").delete().eq("unit_id", unit.id).in("date", setMins),
+                "Back to the standard minimum",
+              )
+            }
+            className="mt-2 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-ink-muted underline underline-offset-4 hover:text-ink"
+          >
+            <RotateCcw className="size-3" /> Reset to {plural(unit.min_nights, "night")}
+          </button>
+        )}
+      </div>
 
       {free.length === nights.length && (
         <Button className="w-full" onClick={onCreate}>

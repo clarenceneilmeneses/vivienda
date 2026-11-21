@@ -33,6 +33,7 @@ export function RangeCalendar({
   months = 2,
   onVisibleMonthChange,
   dayNote,
+  minNights,
 }: {
   value: DateRange;
   onChange: (r: DateRange) => void;
@@ -41,6 +42,8 @@ export function RangeCalendar({
   months?: 1 | 2;
   onVisibleMonthChange?: (firstMonth: Date) => void;
   dayNote?: (iso: string) => string | null;
+  /** The shortest stay allowed from a check-in date. Shorter check-outs can't be picked. */
+  minNights?: (checkIn: string) => number;
 }) {
   const [first, setFirst] = useState(() => startOfMonth(value.checkIn ? parseISO(value.checkIn) : new Date()));
   const [hover, setHover] = useState<string | null>(null);
@@ -57,6 +60,12 @@ export function RangeCalendar({
     return isoDate(d);
   }, [value.checkIn, value.checkOut, unavailable]);
 
+  // While choosing a check-out: the first day that may be picked.
+  const minCheckout = useMemo(() => {
+    if (!value.checkIn || value.checkOut) return null;
+    return isoDate(addDays(parseISO(value.checkIn), Math.max(1, minNights?.(value.checkIn) ?? 1)));
+  }, [value.checkIn, value.checkOut, minNights]);
+
   function move(delta: number) {
     const next = addMonths(first, delta);
     setFirst(next);
@@ -66,6 +75,7 @@ export function RangeCalendar({
   function pick(iso: string) {
     const { checkIn, checkOut } = value;
     const choosingEnd = checkIn && !checkOut;
+    if (choosingEnd && iso > checkIn && minCheckout && iso < minCheckout) return;
     if (choosingEnd && iso > checkIn && maxCheckout && iso <= maxCheckout) {
       onChange({ checkIn, checkOut: iso });
       return;
@@ -116,6 +126,7 @@ export function RangeCalendar({
             min={min}
             unavailable={unavailable}
             maxCheckout={maxCheckout}
+            minCheckout={minCheckout}
             onPick={pick}
             dayNote={dayNote}
           />
@@ -134,6 +145,7 @@ function Month({
   min,
   unavailable,
   maxCheckout,
+  minCheckout,
   onPick,
   dayNote,
 }: {
@@ -145,6 +157,7 @@ function Month({
   min: string;
   unavailable: Set<string>;
   maxCheckout: string | null;
+  minCheckout: string | null;
   onPick: (iso: string) => void;
   dayNote?: (iso: string) => string | null;
 }) {
@@ -153,7 +166,9 @@ function Month({
     end: endOfWeek(endOfMonth(month)),
   });
   const { checkIn, checkOut } = value;
-  const rangeEnd = checkOut ?? (checkIn && hover && maxCheckout && hover > checkIn && hover <= maxCheckout ? hover : null);
+  const canEnd = (iso: string) =>
+    Boolean(checkIn && !checkOut && maxCheckout && iso > checkIn && iso <= maxCheckout && (!minCheckout || iso >= minCheckout));
+  const rangeEnd = checkOut ?? (hover && canEnd(hover) ? hover : null);
 
   return (
     <div className={className}>
@@ -170,8 +185,10 @@ function Month({
           if (!isSameMonth(d, month)) return <div key={iso} />;
           const past = iso < min;
           const taken = unavailable.has(iso);
-          const asCheckout = Boolean(checkIn && !checkOut && maxCheckout && iso > checkIn && iso <= maxCheckout);
-          const disabled = past || (taken && !asCheckout);
+          const asCheckout = canEnd(iso);
+          // Too short a stay: inside the minimum, while picking a check-out.
+          const tooShort = Boolean(checkIn && !checkOut && minCheckout && iso > checkIn && iso < minCheckout);
+          const disabled = past || tooShort || (taken && !asCheckout);
           const isStart = iso === checkIn;
           const isEnd = iso === rangeEnd;
           const inRange = Boolean(checkIn && rangeEnd && iso > checkIn && iso < rangeEnd);

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "./supabase";
 import { SITE } from "./site";
-import type { BookingSummary, Settings, Unit } from "./types";
+import type { BookingSummary, Quote, Settings, Unit } from "./types";
 
 export const DEFAULT_SETTINGS: Settings = {
   id: 1,
@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   admin_notify_email: "",
   reminder_days_before: 2,
   disabled_emails: [],
+  daily_report: false,
 };
 
 export function useSettings() {
@@ -72,6 +73,11 @@ export function normalizeUnit(u: Record<string, unknown>): Unit {
     extra_guest_fee: Number(u.extra_guest_fee ?? 0),
     amenities: (u.amenities as string[]) ?? [],
     photos: (u.photos as string[]) ?? [],
+    // Before the November SQL runs these columns are missing; the site acts as before.
+    max_pets: Number(u.max_pets ?? 0),
+    pet_fee: Number(u.pet_fee ?? 0),
+    min_nights: Number(u.min_nights ?? 1),
+    tour_video_url: (u.tour_video_url as string) ?? "",
   };
 }
 
@@ -83,7 +89,56 @@ export function normalizeBooking(b: Record<string, unknown>): BookingSummary {
     total: Number(b.total ?? 0),
     paid: Number(b.paid ?? 0),
     balance: Number(b.balance ?? 0),
+    children: Number(b.children ?? 0),
+    pets: Number(b.pets ?? 0),
+    pet_total: Number(b.pet_total ?? 0),
+    pay_plan: (b.pay_plan as BookingSummary["pay_plan"]) ?? "downpayment",
   };
+}
+
+/** The server's price for a stay, the same one create_booking charges. */
+export function useQuote(unitId: string | null | undefined, checkIn: string | null, checkOut: string | null, guests: number, pets = 0) {
+  return useQuery({
+    queryKey: ["quote", unitId, checkIn, checkOut, guests, pets],
+    enabled: Boolean(unitId && checkIn && checkOut),
+    queryFn: async (): Promise<Quote> => {
+      const { data, error } = await supabase.rpc("quote_stay", {
+        p_unit: unitId,
+        p_check_in: checkIn,
+        p_check_out: checkOut,
+        p_guests: guests,
+        p_pets: pets,
+      });
+      if (error) throw error;
+      const row = (data as Record<string, unknown>[])[0]!;
+      return {
+        nights: Number(row.nights),
+        room_total: Number(row.room_total),
+        extra_guest_total: Number(row.extra_guest_total),
+        pet_total: Number(row.pet_total ?? 0),
+        total: Number(row.total),
+      };
+    },
+  });
+}
+
+/** Check-in dates with their own minimum stay (holidays, long weekends). */
+export function useStayMinimums(unitId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["stay_minimums", unitId],
+    enabled: Boolean(unitId),
+    queryFn: async (): Promise<Map<string, number>> => {
+      const { data, error } = await supabase.from("stay_minimums").select("date, min_nights").eq("unit_id", unitId!);
+      // Before the November SQL has run there are no date minimums.
+      if (error) return new Map();
+      return new Map((data ?? []).map((r) => [r.date as string, Number(r.min_nights)]));
+    },
+  });
+}
+
+/** Mirrors public.min_nights_for: the date's own minimum, else the unit's. */
+export function minNightsFor(unit: Pick<Unit, "min_nights">, checkIn: string, minimums?: Map<string, number>) {
+  return minimums?.get(checkIn) ?? unit.min_nights ?? 1;
 }
 
 /** Nights a unit can't be booked, from the public function (no guest data). */

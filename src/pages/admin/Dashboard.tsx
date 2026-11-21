@@ -5,7 +5,7 @@ import { addDays, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import { AlertCircle, ArrowRight, BedDouble, LogIn, LogOut, MessageSquare, TrendingUp, Users, Wallet } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useSettings, useUnits } from "../../lib/queries";
-import { isoDate, money, plural, stayRange } from "../../lib/format";
+import { compactMoney, isoDate, money, plural, stayRange } from "../../lib/format";
 import type { BookingSummary } from "../../lib/types";
 import { Card, CardHeader, EmptyState, Spinner, StatTile, StatusBadge } from "../../components/ui";
 import { IncomeExpenseChart, type MonthPoint } from "../../components/admin/Charts";
@@ -73,15 +73,25 @@ export default function Dashboard() {
     const activeUnits = (units ?? []).filter((u) => u.is_active).length;
     const daysInMonth = Number(monthEnd.slice(8, 10));
     let nights = 0;
+    // Stay revenue earned this month: each booking's total, spread over its nights.
+    let revenue = 0;
     list
       .filter((b) => ["confirmed", "checked_in", "checked_out"].includes(b.status))
       .forEach((b) => {
         const s = b.check_in < monthStart ? monthStart : b.check_in;
         const endExclusive = isoDate(addDays(new Date(`${monthEnd}T00:00:00`), 1));
         const e = b.check_out > endExclusive ? endExclusive : b.check_out;
-        nights += Math.max(0, Math.round((new Date(`${e}T00:00:00`).getTime() - new Date(`${s}T00:00:00`).getTime()) / 86_400_000));
+        const n = Math.max(0, Math.round((new Date(`${e}T00:00:00`).getTime() - new Date(`${s}T00:00:00`).getTime()) / 86_400_000));
+        nights += n;
+        if (b.nights > 0) revenue += (b.total * n) / b.nights;
       });
     const occupancy = activeUnits ? Math.round((nights / (activeUnits * daysInMonth)) * 100) : 0;
+    // Bookings made this month, whatever their dates (as in Malaya's Performance KPI).
+    const made = list.filter(
+      (b) => b.created_at.slice(0, 10) >= monthStart && b.created_at.slice(0, 10) <= monthEnd && !["cancelled", "declined"].includes(b.status),
+    );
+    const adr = nights ? revenue / nights : 0;
+    const revpar = activeUnits ? revenue / (activeUnits * daysInMonth) : 0;
 
     return {
       pending,
@@ -93,6 +103,11 @@ export default function Dashboard() {
       unpaidTotal: unpaid.reduce((s, b) => s + b.balance, 0),
       occupancy,
       nights,
+      revenue,
+      made,
+      madeValue: made.reduce((s, b) => s + b.total, 0),
+      adr,
+      revpar,
     };
   }, [bookings, units, today, monthStart, monthEnd]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -169,6 +184,56 @@ export default function Dashboard() {
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader
+            title={`Performance · ${format(now, "MMMM")}`}
+            description="Stays are counted on the nights they fall in. Bookings made counts requests sent this month."
+          />
+          <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-b-2xl bg-sand-200/80 sm:grid-cols-4">
+            <Kpi
+              label="Bookings made"
+              value={String(stats.made.length)}
+              sub={stats.made.length ? `${compactMoney(stats.madeValue)} booked` : "None yet"}
+            />
+            <Kpi label="Occupancy" value={`${stats.occupancy}%`} sub={`${plural(stats.nights, "night")} sold`} />
+            <Kpi
+              label="Avg nightly rate"
+              value={stats.nights ? money(stats.adr, true) : "—"}
+              sub="ADR: stay income ÷ nights sold"
+            />
+            <Kpi label="RevPAR" value={money(stats.revpar, true)} sub="Stay income ÷ nights in month" />
+          </dl>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader
+            title="Unsettled balances"
+            description={stats.unpaid.length ? `${money(stats.unpaidTotal, true)} across ${plural(stats.unpaid.length, "booking")}` : undefined}
+          />
+          {stats.unpaid.length === 0 ? (
+            <EmptyState title="Everyone is paid up" />
+          ) : (
+            <ul className="max-h-64 divide-y divide-sand-200/80 overflow-y-auto">
+              {[...stats.unpaid]
+                .sort((a, b) => a.check_in.localeCompare(b.check_in))
+                .map((b) => (
+                  <li key={b.id}>
+                    <button onClick={() => setOpenId(b.id)} className="flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-sand-50">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{b.guest_name}</span>
+                        <span className="block truncate text-xs text-ink-muted">
+                          {stayRange(b.check_in, b.check_out)} · {b.ref}
+                        </span>
+                      </span>
+                      <span className="text-sm font-semibold text-terra-600">{money(b.balance, true)}</span>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <Card className="lg:col-span-3">
+          <CardHeader
             title="Arriving in the next 7 days"
             action={
               <Link to="/admin/calendar" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline">
@@ -238,5 +303,15 @@ function Alert({ to, children, icon }: { to: string; children: ReactNode; icon?:
       <span className="flex-1">{children}</span>
       <ArrowRight className="size-4" />
     </Link>
+  );
+}
+
+function Kpi({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="bg-white px-5 py-4">
+      <dt className="eyebrow">{label}</dt>
+      <dd className="mt-1.5 font-display text-2xl leading-tight text-ink tabular-nums">{value}</dd>
+      <dd className="mt-0.5 text-xs text-ink-muted">{sub}</dd>
+    </div>
   );
 }

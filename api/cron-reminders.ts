@@ -1,6 +1,8 @@
 import { adminClient, deliver, json, loadBooking, loadSettings, manilaToday, siteUrlFrom } from "./_lib/email.js";
+import { sendDailyReport } from "./_lib/daily-report.js";
 
-// Runs daily (see vercel.json). Emails confirmed guests N days before check-in.
+// Runs daily at 9 AM Manila (see vercel.json). Emails confirmed guests N days
+// before check-in, then sends the owner's daily report if it's switched on.
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -9,10 +11,20 @@ export async function GET(request: Request) {
 
   const db = adminClient();
   const settings = await loadSettings(db);
-  const days = settings.reminder_days_before;
-  if (!days || !settings.send_emails) return json({ sent: 0, note: "Reminders are off" });
+  const site = siteUrlFrom(request);
+  const today = manilaToday();
 
-  const target = new Date(`${manilaToday()}T00:00:00Z`);
+  let report: { status: string; message?: string };
+  try {
+    report = await sendDailyReport(db, settings, site, today);
+  } catch (err) {
+    report = { status: "failed", message: err instanceof Error ? err.message : String(err) };
+  }
+
+  const days = settings.reminder_days_before;
+  if (!days || !settings.send_emails) return json({ sent: 0, note: "Reminders are off", report });
+
+  const target = new Date(`${today}T00:00:00Z`);
   target.setUTCDate(target.getUTCDate() + days);
   const targetIso = target.toISOString().slice(0, 10);
 
@@ -22,9 +34,8 @@ export async function GET(request: Request) {
     .eq("status", "confirmed")
     .eq("check_in", targetIso)
     .is("reminder_sent_at", null);
-  if (error) return json({ message: error.message }, 500);
+  if (error) return json({ message: error.message, report }, 500);
 
-  const site = siteUrlFrom(request);
   let sent = 0;
   for (const { id } of data ?? []) {
     const booking = await loadBooking(db, id);
@@ -35,5 +46,5 @@ export async function GET(request: Request) {
       await db.from("bookings").update({ reminder_sent_at: new Date().toISOString() }).eq("id", id);
     }
   }
-  return json({ sent, checked: data?.length ?? 0, date: targetIso });
+  return json({ sent, checked: data?.length ?? 0, date: targetIso, report });
 }

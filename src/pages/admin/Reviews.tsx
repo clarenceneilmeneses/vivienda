@@ -1,13 +1,28 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Eye, EyeOff, MessageSquareReply, Star } from "lucide-react";
+import { Eye, EyeOff, MessageSquareReply, Plus, Star, Trash2 } from "lucide-react";
 import { errorMessage, supabase } from "../../lib/supabase";
-import { prettyDate, stayRange } from "../../lib/format";
+import { isoDate, prettyDate, stayRange } from "../../lib/format";
 import { REVIEWS } from "../../lib/site";
 import { cn } from "../../lib/utils";
-import type { Review } from "../../lib/types";
-import { Button, Card, EmptyState, Modal, PageHeader, Spinner, StatTile, Tabs, Textarea } from "../../components/ui";
+import { REVIEW_SOURCE_LABEL, type Review, type ReviewSource } from "../../lib/types";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorBox,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  Select,
+  Spinner,
+  StatTile,
+  Tabs,
+  Textarea,
+} from "../../components/ui";
 import { Stars } from "../../components/public/StayBits";
 
 type Row = Review & {
@@ -23,6 +38,7 @@ export default function Reviews() {
   const [replying, setReplying] = useState<Row | null>(null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   const { data: rows, isLoading, error } = useQuery({
     queryKey: ["reviews", "admin"],
@@ -54,6 +70,14 @@ export default function Reviews() {
     toast.success(status === "published" ? "Published on the website" : status === "hidden" ? "Hidden" : "Moved back");
   }
 
+  async function remove(r: Row) {
+    if (!confirm(`Delete ${r.reviewer_name || "this"}'s review? This can't be undone.`)) return;
+    const { error } = await supabase.from("reviews").delete().eq("id", r.id);
+    if (error) return void toast.error(errorMessage(error));
+    await qc.invalidateQueries({ queryKey: ["reviews"] });
+    toast.success("Review deleted");
+  }
+
   async function saveReply() {
     if (!replying) return;
     setBusy(true);
@@ -74,6 +98,11 @@ export default function Reviews() {
         eyebrow="Guests"
         title="Reviews"
         description="Guests can review their stay from their Trips page after checkout. Nothing shows on the website until you publish it."
+        actions={
+          <Button onClick={() => setAdding(true)}>
+            <Plus className="size-4" /> Add a review
+          </Button>
+        }
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
@@ -110,10 +139,18 @@ export default function Reviews() {
             <Card key={r.id} className="flex flex-col p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-medium text-ink">{r.guest?.full_name ?? "Guest"}</p>
+                  <p className="flex flex-wrap items-center gap-2 font-medium text-ink">
+                    {r.reviewer_name || r.guest?.full_name || "Guest"}
+                    <Badge className={(r.source ?? "website") === "website" ? "bg-emerald-50 text-emerald-800" : ""}>
+                      {REVIEW_SOURCE_LABEL[r.source ?? "website"]}
+                    </Badge>
+                  </p>
                   <p className="text-xs text-ink-muted">
-                    {r.booking ? `${r.booking.ref} · ${stayRange(r.booking.check_in, r.booking.check_out)}` : ""} · written{" "}
-                    {prettyDate(r.created_at.slice(0, 10), "MMM d")}
+                    {r.booking
+                      ? `${r.booking.ref} · ${stayRange(r.booking.check_in, r.booking.check_out)} · written ${prettyDate(r.created_at.slice(0, 10), "MMM d")}`
+                      : r.reviewed_on
+                        ? `Reviewed ${prettyDate(r.reviewed_on, "MMM d, yyyy")}`
+                        : `Added ${prettyDate(r.created_at.slice(0, 10), "MMM d")}`}
                   </p>
                 </div>
                 <Stars rating={r.rating} />
@@ -147,6 +184,11 @@ export default function Reviews() {
                 >
                   <MessageSquareReply className="size-3.5" /> {r.host_reply ? "Edit reply" : "Reply publicly"}
                 </Button>
+                {!r.booking_id && (
+                  <Button size="sm" variant="ghost" className="ml-auto text-red-700" onClick={() => remove(r)}>
+                    <Trash2 className="size-3.5" /> Delete
+                  </Button>
+                )}
               </div>
             </Card>
           ))}
@@ -171,6 +213,105 @@ export default function Reviews() {
       >
         <Textarea rows={5} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Thank you for staying with us…" />
       </Modal>
+      {adding && <AddReviewModal onClose={() => setAdding(false)} />}
     </>
+  );
+}
+
+/** A review from Airbnb, Google or Facebook, typed in so it shows beside the website's own. */
+function AddReviewModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [source, setSource] = useState<ReviewSource>("airbnb");
+  const [name, setName] = useState("");
+  const [rating, setRating] = useState(5);
+  const [body, setBody] = useState("");
+  const [date, setDate] = useState(isoDate(new Date()));
+  const [publish, setPublish] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setError(null);
+    if (!name.trim()) return setError("Who wrote it? A first name and initial is enough.");
+    if (body.trim().length < 5) return setError("Paste the review text.");
+    setSaving(true);
+    const { error } = await supabase.from("reviews").insert({
+      source,
+      reviewer_name: name.trim(),
+      rating,
+      body: body.trim(),
+      reviewed_on: date || null,
+      status: publish ? "published" : "pending",
+    });
+    setSaving(false);
+    if (error) return setError(errorMessage(error));
+    await qc.invalidateQueries({ queryKey: ["reviews"] });
+    toast.success(publish ? "Review added and published" : "Review added");
+    onClose();
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Add a review"
+      description="Bring over a review from Airbnb, Google or Facebook. It shows on the site with where it came from."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={saving} onClick={save}>
+            Add review
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="From">
+            {(id) => (
+              <Select id={id} value={source} onChange={(e) => setSource(e.target.value as ReviewSource)}>
+                {(["airbnb", "google", "facebook", "other"] as const).map((s) => (
+                  <option key={s} value={s}>
+                    {REVIEW_SOURCE_LABEL[s]}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field label="Reviewed on" optional>
+            {(id) => <Input id={id} type="date" value={date} onChange={(e) => setDate(e.target.value)} />}
+          </Field>
+        </div>
+        <Field label="Name" hint="As shown on the platform, e.g. Maria S.">
+          {(id) => <Input id={id} value={name} onChange={(e) => setName(e.target.value)} />}
+        </Field>
+        <div>
+          <p className="mb-1.5 text-sm font-medium text-ink">Rating</p>
+          <div className="flex gap-1" role="radiogroup" aria-label="Rating">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={rating === n}
+                aria-label={`${n} star${n === 1 ? "" : "s"}`}
+                onClick={() => setRating(n)}
+                className="cursor-pointer p-0.5"
+              >
+                <Star className={cn("size-7", n <= rating ? "fill-brand-700 text-brand-700" : "text-sand-300")} />
+              </button>
+            ))}
+          </div>
+        </div>
+        <Field label="Review">{(id) => <Textarea id={id} rows={5} value={body} onChange={(e) => setBody(e.target.value)} />}</Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} className="size-4 accent-brand-700" />
+          Publish on the website now
+        </label>
+        <ErrorBox>{error}</ErrorBox>
+      </div>
+    </Modal>
   );
 }

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { addDays } from "date-fns";
 import {
   BadgeCheck,
@@ -14,21 +13,32 @@ import {
   Lock,
   MapPin,
   MessageCircle,
+  PawPrint,
+  PlayCircle,
+  Share,
   ShieldCheck,
   Star,
   Users,
   Waves,
   X,
 } from "lucide-react";
-import { supabase } from "../../lib/supabase";
-import { nightlyRate, useRateOverrides, useSettings, useUnavailableNights, useUnits } from "../../lib/queries";
+import { toast } from "sonner";
+import {
+  minNightsFor,
+  nightlyRate,
+  useQuote,
+  useRateOverrides,
+  useSettings,
+  useStayMinimums,
+  useUnavailableNights,
+  useUnits,
+} from "../../lib/queries";
 import { compactMoney, isoDate, money, plural, prettyDate, prettyTime } from "../../lib/format";
 import { DEFAULT_AMENITIES, LOCATION_LABEL, RECOMMEND, REVIEWS, SITE, SLEEPING } from "../../lib/site";
 import { cn } from "../../lib/utils";
-import type { Quote } from "../../lib/types";
 import { RangeCalendar, type DateRange } from "../../components/RangeCalendar";
 import { Spinner } from "../../components/ui";
-import { Stepper } from "../../components/public/SearchPill";
+import { PartyPicker, partyFromParams, partyLabel, partyQuery, type Party } from "../../components/public/PartyPicker";
 import { averageRating, GuestReviewCard, ReviewCard, unitPhotos } from "../../components/public/StayBits";
 import { useGuestUi } from "../../components/public/GuestContext";
 import { usePublishedReviews } from "../../lib/guest";
@@ -46,25 +56,29 @@ export default function Stay() {
   const horizon = isoDate(addDays(new Date(), 400));
   const { data: unavailable } = useUnavailableNights(unit?.id, today, horizon);
   const { data: overrides } = useRateOverrides(unit?.id);
+  const { data: minimums } = useStayMinimums(unit?.id);
   const { data: guestReviews = [] } = usePublishedReviews();
   const { session, isAdmin } = useAuth();
   const { signIn, openChat } = useGuestUi();
 
   const range: DateRange = { checkIn: params.get("in"), checkOut: params.get("out") };
-  const guests = Math.min(Number(params.get("guests")) || 2, unit?.max_guests ?? 99);
+  const party = partyFromParams(params, unit);
+  const guests = party.guests;
   const [showAll, setShowAll] = useState(false);
+  const [partyOpen, setPartyOpen] = useState(false);
   const [datesOpen, setDatesOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
 
-  function update(next: Partial<{ in: string | null; out: string | null; guests: number }>) {
+  function update(next: Partial<{ in: string | null; out: string | null; guests: number; kids: number; pets: number }>) {
     const q = new URLSearchParams(params);
     for (const [k, v] of Object.entries(next)) {
-      if (v == null || v === "") q.delete(k);
+      if (v == null || v === "" || (k !== "guests" && v === 0)) q.delete(k);
       else q.set(k, String(v));
     }
     setParams(q, { replace: true });
   }
   const setRange = (r: DateRange) => update({ in: r.checkIn, out: r.checkOut });
+  const setParty = (p: Party) => update({ guests: p.guests, kids: p.children, pets: p.pets });
 
   // Dates from a search that are no longer free are dropped rather than shown as bookable.
   useEffect(() => {
@@ -74,32 +88,14 @@ export default function Stay() {
     }
   }, [unavailable]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { data: quote, isFetching: quoting } = useQuery({
-    queryKey: ["quote", unit?.id, range.checkIn, range.checkOut, guests],
-    enabled: Boolean(unit && range.checkIn && range.checkOut),
-    queryFn: async (): Promise<Quote> => {
-      const { data, error } = await supabase.rpc("quote_stay", {
-        p_unit: unit!.id,
-        p_check_in: range.checkIn,
-        p_check_out: range.checkOut,
-        p_guests: guests,
-      });
-      if (error) throw error;
-      const row = (data as Quote[])[0]!;
-      return {
-        nights: Number(row.nights),
-        room_total: Number(row.room_total),
-        extra_guest_total: Number(row.extra_guest_total),
-        total: Number(row.total),
-      };
-    },
-  });
+  const { data: quote, isFetching: quoting } = useQuote(unit?.id, range.checkIn, range.checkOut, guests, party.pets);
 
   const photos = useMemo(() => (unit ? unitPhotos(unit) : []), [unit]);
 
   if (isLoading) return <Spinner className="min-h-[50vh]" />;
   if (!unit) return <Navigate to="/#stay" replace />;
 
+  const minNights = (checkIn: string) => minNightsFor(unit, checkIn, minimums);
   const amenities = unit.amenities.length ? unit.amenities : DEFAULT_AMENITIES;
   const about = unit.description || settings?.about || SITE.about;
   const ready = Boolean(range.checkIn && range.checkOut);
@@ -117,14 +113,31 @@ export default function Stay() {
       setDatesOpen(true);
       return;
     }
-    navigate(`/book?unit=${unit!.slug}&in=${range.checkIn}&out=${range.checkOut}&guests=${guests}`);
+    navigate(`/book?unit=${unit!.slug}&in=${range.checkIn}&out=${range.checkOut}&${partyQuery(party)}`);
+  }
+
+  async function share() {
+    const url = window.location.href;
+    const title = `${unit!.name} · ${settings?.resort_name || SITE.name}`;
+    try {
+      if (navigator.share) await navigator.share({ title, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied", { description: "Paste it to your group chat." });
+      }
+    } catch {
+      /* closed the share sheet */
+    }
   }
 
   const rules: [ReactNode, string][] = [
     [<Clock key="i" />, `Check-in after ${prettyTime(settings?.check_in_time ?? "14:00")}`],
     [<Clock key="o" />, `Check-out before ${prettyTime(settings?.check_out_time ?? "12:00")}`],
     [<Users key="g" />, `Maximum ${unit.max_guests} guests`],
+    [<PawPrint key="p" />, unit.max_pets > 0 ? `Pets allowed (up to ${unit.max_pets})` : "No pets"],
   ];
+  if (unit.min_nights > 1) rules.push([<CalendarClock key="m" />, `Minimum stay of ${unit.min_nights} nights`]);
+  const datedMinimums = [...(minimums ?? new Map<string, number>())].filter(([d]) => d >= today).length;
 
   return (
     <div className="mx-auto max-w-7xl px-4 pt-4 pb-28 sm:px-8 lg:pb-16">
@@ -158,11 +171,31 @@ export default function Stay() {
         >
           <Grid3X3 className="size-3.5" /> Show all {photos.length} photos
         </button>
+        {unit.tour_video_url && (
+          <a
+            href={unit.tour_video_url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="absolute bottom-4 left-4 inline-flex items-center gap-2 rounded-full bg-ink/85 px-4 py-2 text-xs font-medium text-white shadow-level-2 backdrop-blur hover:bg-ink"
+          >
+            <PlayCircle className="size-4" /> Watch the full tour
+          </a>
+        )}
       </div>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
         <div className="min-w-0">
-          <h1 className="font-display text-3xl font-semibold text-brand-700 sm:text-4xl">{unit.name}</h1>
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="font-display text-3xl font-semibold text-brand-700 sm:text-4xl">{unit.name}</h1>
+            <button
+              type="button"
+              onClick={share}
+              title="Share this place"
+              className="mt-1 inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-ink underline underline-offset-4 hover:bg-sand-100"
+            >
+              <Share className="size-4" /> Share
+            </button>
+          </div>
           <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-soft">
             <MapPin className="size-4 text-brand-700" /> {LOCATION_LABEL}
             {rating != null && (
@@ -243,9 +276,20 @@ export default function Stay() {
               onChange={setRange}
               unavailable={unavailable ?? new Set()}
               dayNote={(iso) => compactMoney(nightlyRate(unit, iso, overrides))}
+              minNights={minNights}
             />
-            <p className="mt-3 text-xs text-ink-muted">Crossed-out nights are taken. Prices shown are per night.</p>
+            <p className="mt-3 text-xs text-ink-muted">
+              Crossed-out nights are taken. Prices shown are per night.
+              {unit.min_nights > 1 && ` Stays are at least ${unit.min_nights} nights.`}
+              {datedMinimums > 0 && " Some dates, like holidays, have a longer minimum stay."}
+            </p>
           </Block>
+
+          <div className="lg:hidden">
+            <Block title="Who's coming">
+              <PartyPicker unit={unit} value={party} onChange={setParty} />
+            </Block>
+          </div>
 
           {REVIEWS.length + guestReviews.length > 0 && (
             <Block
@@ -397,16 +441,32 @@ export default function Stay() {
                   }}
                   unavailable={unavailable ?? new Set()}
                   dayNote={(iso) => compactMoney(nightlyRate(unit, iso, overrides))}
+                  minNights={minNights}
                 />
               )}
             </div>
 
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-sand-300 px-3 py-2.5">
-              <span>
-                <span className="block text-[10px] font-semibold tracking-wide text-ink uppercase">Guests</span>
-                <span className="block text-sm text-ink">{plural(guests, "guest")}</span>
-              </span>
-              <Stepper value={guests} min={1} max={unit.max_guests} onChange={(g) => update({ guests: g })} />
+            <div className="relative mt-3">
+              <button
+                type="button"
+                onClick={() => setPartyOpen((v) => !v)}
+                aria-expanded={partyOpen}
+                className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-sand-300 px-3 py-2.5 text-left"
+              >
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-semibold tracking-wide text-ink uppercase">Guests</span>
+                  <span className="block truncate text-sm text-ink">{partyLabel(party)}</span>
+                </span>
+                <ChevronDown className={cn("size-4 shrink-0 text-ink-muted transition-transform", partyOpen && "rotate-180")} />
+              </button>
+              {partyOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setPartyOpen(false)} aria-hidden />
+                  <div className="absolute inset-x-0 top-full z-40 mt-2 rounded-2xl border border-sand-200/70 bg-white p-4 shadow-level-4">
+                    <PartyPicker unit={unit} value={party} onChange={setParty} />
+                  </div>
+                </>
+              )}
             </div>
 
             <button
@@ -424,6 +484,7 @@ export default function Stay() {
                   value={money(quote.room_total, true)}
                 />
                 {quote.extra_guest_total > 0 && <PriceRow label="Extra guests" value={money(quote.extra_guest_total, true)} />}
+                {quote.pet_total > 0 && <PriceRow label={plural(party.pets, "pet")} value={money(quote.pet_total, true)} />}
                 <div className="flex justify-between border-t border-sand-200 pt-3 text-base font-semibold text-ink">
                   <dt>Total</dt>
                   <dd>{money(quote.total, true)}</dd>
@@ -508,6 +569,7 @@ function DatesPopover({
   onChange: (r: DateRange) => void;
   unavailable: Set<string>;
   dayNote: (iso: string) => string | null;
+  minNights?: (checkIn: string) => number;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();

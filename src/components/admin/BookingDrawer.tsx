@@ -187,7 +187,9 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
               {b.unit_name} · {stayRange(b.check_in, b.check_out)}
             </p>
             <p className="text-sm text-ink-muted">
-              {plural(b.nights, "night")} · {plural(b.guests_count, "guest")}
+              {plural(b.nights, "night")} · {plural(b.guests_count - b.children, "adult")}
+              {b.children > 0 && ` · ${plural(b.children, "child", "children")}`}
+              {b.pets > 0 && ` · ${plural(b.pets, "pet")}`}
             </p>
           </div>
           <StatusBadge status={b.status} />
@@ -239,6 +241,9 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
             </Info>
           )}
           {b.payment_method && <Info label="Paying by">{METHOD_LABEL[b.payment_method]}</Info>}
+          {b.source === "website" && (
+            <Info label="Chose to pay">{b.pay_plan === "full" ? "In full" : "Downpayment first"}</Info>
+          )}
         </dl>
         <Link
           to={`/admin/inbox?guest=${b.guest_id}`}
@@ -265,7 +270,15 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         <div className="px-5 py-3">
           <dl className="grid grid-cols-3 gap-3 text-sm">
-            <Money label="Total" value={b.total} note={b.discount > 0 ? `${money(b.discount)} off` : undefined} />
+            <Money
+              label="Total"
+              value={b.total}
+              note={
+                [b.discount > 0 ? `${money(b.discount)} off` : null, b.pet_total > 0 ? `${money(b.pet_total, true)} pets` : null]
+                  .filter(Boolean)
+                  .join(" · ") || undefined
+              }
+            />
             <Money label="Paid" value={b.paid} />
             <Money label="Balance" value={b.balance} emphasize={b.balance > 0} />
           </dl>

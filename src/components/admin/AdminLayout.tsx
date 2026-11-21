@@ -3,6 +3,7 @@ import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
+  KeyRound,
   BedDouble,
   Building2,
   CalendarClock,
@@ -61,6 +62,7 @@ const SETTINGS_TABS: SubTab[] = [
   { to: "/admin/settings", label: "General", icon: Building2, hint: "Name, contact details and location" },
   { to: "/admin/settings/booking-rules", label: "Booking rules", icon: CalendarClock, hint: "Stay times, downpayment and policies" },
   { to: "/admin/settings/payments", label: "Payments", icon: CreditCard, hint: "GCash and bank details shown at checkout" },
+  { to: "/admin/settings/arrival-guide", label: "Arrival guide", icon: KeyRound, hint: "Check-in, wifi and house manual for confirmed guests" },
   { to: "/admin/settings/notifications", label: "Notifications", icon: Bell, hint: "Every email the system sends, with a switch on each" },
   { to: "/admin/settings/quick-replies", label: "Quick replies", icon: Zap, hint: "Saved answers for the Inbox" },
   { to: "/admin/settings/account", label: "Account & access", icon: ShieldCheck, hint: "Your password and who can open the admin" },

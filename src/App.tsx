@@ -14,6 +14,7 @@ const TripDetail = lazy(() => import("./pages/public/TripDetail"));
 const Messages = lazy(() => import("./pages/public/Messages"));
 const Profile = lazy(() => import("./pages/public/Profile"));
 const ResetPassword = lazy(() => import("./pages/public/ResetPassword"));
+const HowToPay = lazy(() => import("./pages/public/HowToPay"));
 
 // The admin side carries charts and heavier screens; guests never download it.
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout"));
@@ -30,6 +31,7 @@ const PaymentSettings = lazy(() => import("./pages/admin/settings/Payments"));
 const NotificationSettings = lazy(() => import("./pages/admin/settings/Notifications"));
 const QuickRepliesPage = lazy(() => import("./pages/admin/settings/QuickRepliesPage"));
 const AccountSettings = lazy(() => import("./pages/admin/settings/Account"));
+const ArrivalGuideSettings = lazy(() => import("./pages/admin/settings/ArrivalGuide"));
 const Inbox = lazy(() => import("./pages/admin/Inbox"));
 const Reviews = lazy(() => import("./pages/admin/Reviews"));
 
@@ -53,6 +55,7 @@ export default function App() {
           <Route path="messages" element={<Messages />} />
           <Route path="profile" element={<Profile />} />
           <Route path="reset-password" element={<ResetPassword />} />
+          <Route path="how-to-pay" element={<HowToPay />} />
         </Route>
         <Route path="admin/login" element={<Login />} />
         <Route path="admin" element={<AdminLayout />}>
@@ -67,6 +70,7 @@ export default function App() {
           <Route path="settings" element={<GeneralSettings />} />
           <Route path="settings/booking-rules" element={<BookingRules />} />
           <Route path="settings/payments" element={<PaymentSettings />} />
+          <Route path="settings/arrival-guide" element={<ArrivalGuideSettings />} />
           <Route path="settings/notifications" element={<NotificationSettings />} />
           <Route path="settings/quick-replies" element={<QuickRepliesPage />} />
           <Route path="settings/account" element={<AccountSettings />} />

@@ -9,6 +9,7 @@ import {
   splitTrips,
   useGuestMarkSeen,
   useGuestProfile,
+  useGuestReact,
   useGuestThread,
   useLiveTables,
   useMyTrips,
@@ -17,7 +18,8 @@ import {
 } from "../../lib/guest";
 import { SITE } from "../../lib/site";
 import { cn } from "../../lib/utils";
-import { MessageThread } from "../MessageThread";
+import { MessageThread, PhotoButton, ReplyBar, snippet } from "../MessageThread";
+import type { Message } from "../../lib/types";
 import { StatusBadge } from "../ui";
 
 const STARTERS = [
@@ -46,12 +48,16 @@ export function Conversation({
   const thread = useGuestThread();
   const trips = useMyTrips();
   const send = useSendGuestMessage();
+  const react = useGuestReact();
   const { mutate: markSeen } = useGuestMarkSeen();
   useLiveTables("guest-thread", ["messages", "conversations"], [["guest", "thread"], ["guest", "unread"]], Boolean(profile.data));
 
   const [draft, setDraft] = useState("");
   const [about, setAbout] = useState<Inquiry | null>(initialInquiry ?? null);
   const [problem, setProblem] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const photoPreview = useObjectUrl(photo);
   const inquiryKey = JSON.stringify(initialInquiry ?? null);
   useEffect(() => {
     const next = JSON.parse(inquiryKey) as Inquiry | null;
@@ -95,13 +101,15 @@ export function Conversation({
 
   function submit(text = draft) {
     const body = text.trim();
-    if (!body || send.isPending) return;
+    if ((!body && !photo) || send.isPending) return;
     send.mutate(
-      { body, kind: problem ? "problem" : "message", inquiry: about },
+      { body, kind: problem ? "problem" : "message", inquiry: about, replyTo: replyTo?.id ?? null, photo },
       {
         onSuccess: () => {
           setDraft("");
           setAbout(null);
+          setReplyTo(null);
+          setPhoto(null);
           if (problem) {
             setProblem(false);
             toast.success("Problem reported", { description: "We've been alerted and will reply here." });
@@ -174,6 +182,10 @@ export function Conversation({
             viewer="guest"
             hostName={hostName}
             otherSeenAt={conversation?.admin_seen_at}
+            onReply={(m) => (setReplyTo(m), textRef.current?.focus())}
+            onReact={(m, emoji) =>
+              react.mutate({ messageId: m.id, emoji }, { onError: (e) => toast.error(errorMessage(e)) })
+            }
             bookingLink={(id) => {
               const t = trips.data?.find((x) => x.id === id);
               return t ? (
@@ -193,6 +205,27 @@ export function Conversation({
           submit();
         }}
       >
+        {replyTo && (
+          <ReplyBar
+            name={replyTo.author === "guest" ? "yourself" : hostName}
+            text={snippet(replyTo)}
+            onCancel={() => setReplyTo(null)}
+          />
+        )}
+        {photo && photoPreview && (
+          <div className="mb-2 flex items-center gap-2">
+            <img src={photoPreview} alt="" className="size-14 rounded-lg object-cover" />
+            <span className="min-w-0 flex-1 truncate text-xs text-ink-muted">{photo.name}</span>
+            <button
+              type="button"
+              onClick={() => setPhoto(null)}
+              className="cursor-pointer rounded-full p-1 text-ink-muted hover:bg-sand-100"
+              aria-label="Remove photo"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
         {problem ? (
           <div className="mb-2 flex items-center justify-between gap-2 text-xs">
             <span className="inline-flex items-center gap-1.5 font-semibold text-red-700">
@@ -236,10 +269,11 @@ export function Conversation({
 
         <div
           className={cn(
-            "flex items-end gap-1 rounded-3xl border bg-white py-1.5 pr-1.5 pl-4 focus-within:border-ink/50",
+            "flex items-end gap-1 rounded-3xl border bg-white py-1.5 pr-1.5 pl-1.5 focus-within:border-ink/50",
             problem ? "border-red-300" : "border-sand-300",
           )}
         >
+          <PhotoButton onPick={setPhoto} disabled={send.isPending} />
           <textarea
             ref={textRef}
             rows={1}
@@ -257,7 +291,7 @@ export function Conversation({
           />
           <button
             type="submit"
-            disabled={!draft.trim() || send.isPending}
+            disabled={(!draft.trim() && !photo) || send.isPending}
             className={cn(
               "grid size-9 shrink-0 cursor-pointer place-items-center rounded-full text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40",
               problem ? "bg-red-600 hover:bg-red-700" : "bg-brand-700 hover:bg-brand-700/90",
@@ -270,4 +304,16 @@ export function Conversation({
       </form>
     </div>
   );
+}
+
+/** A preview link for a picked file, released when it changes. */
+function useObjectUrl(file: File | null) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file) return setUrl(null);
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return url;
 }

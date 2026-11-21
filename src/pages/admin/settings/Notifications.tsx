@@ -98,6 +98,14 @@ export default function NotificationSettings() {
           {(id) => <Input id={id} type="email" {...f.text("admin_notify_email")} placeholder="you@example.com" />}
         </Field>
         {list(TO_YOU)}
+        <div className="mt-4 border-t border-sand-200 pt-4">
+          <Switch
+            checked={Boolean(d.daily_report)}
+            onChange={(v) => f.set("daily_report", v)}
+            label="Daily report"
+            description="Every morning at 9: today's arrivals and departures, who is in house, requests waiting for you, and yesterday's money."
+          />
+        </div>
       </SettingsCard>
 
       <SettingsCard icon={History} title="Recently sent" description="The last emails the system tried to send.">
