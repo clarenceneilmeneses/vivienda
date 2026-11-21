@@ -5,12 +5,16 @@ import { ClipboardList, Download, Plus } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { normalizeBooking } from "../../lib/queries";
 import { downloadCsv, isoDate, money, plural, stayRange } from "../../lib/format";
-import { SOURCE_LABEL, STATUS_LABEL, type BookingSummary } from "../../lib/types";
+import { SOURCE_LABEL, STATUS_LABEL, type BookingSource, type BookingSummary } from "../../lib/types";
+import { useUnits } from "../../lib/queries";
 import {
   Button,
   Card,
+  ClearFilters,
   EmptyState,
+  FilterSelect,
   PageHeader,
+  Pagination,
   SearchField,
   Spinner,
   StatGrid,
@@ -18,11 +22,15 @@ import {
   StatusBadge,
   Tabs,
   Toolbar,
+  ToolbarGroup,
+  usePaged,
+  ViewButton,
 } from "../../components/ui";
 import { BookingForm } from "../../components/admin/BookingForm";
 import { stayInRange, useAdminRange } from "../../lib/admin-range";
 
 type View = "action" | "upcoming" | "inhouse" | "past" | "cancelled" | "all";
+type PayFilter = "any" | "due" | "paid";
 
 export function useAllBookings() {
   return useQuery({
@@ -46,8 +54,12 @@ export default function Bookings() {
   const openId = params.get("id");
   const [view, setView] = useState<View>((params.get("view") as View) || "action");
   const [q, setQ] = useState("");
+  const [room, setRoom] = useState("any");
+  const [source, setSource] = useState<"any" | BookingSource>("any");
+  const [pay, setPay] = useState<PayFilter>("any");
   const [adding, setAdding] = useState(false);
   const { data: all, isLoading } = useAllBookings();
+  const { data: units } = useUnits();
   const today = isoDate(new Date());
   const range = useAdminRange();
   // What needs doing now ignores the dates; history follows the top bar's dates.
@@ -69,12 +81,17 @@ export default function Bookings() {
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
-    const list = groups[view];
-    if (!term) return list;
-    return list.filter((b) =>
-      [b.ref, b.guest_name, b.guest_email, b.guest_phone, b.unit_name].some((v) => v?.toLowerCase().includes(term)),
+    return groups[view].filter(
+      (b) =>
+        (room === "any" || b.unit_id === room) &&
+        (source === "any" || b.source === source) &&
+        (pay === "any" || (pay === "due" ? b.balance > 0.009 : b.balance <= 0.009)) &&
+        (!term ||
+          [b.ref, b.guest_name, b.guest_email, b.guest_phone, b.unit_name].some((v) => v?.toLowerCase().includes(term))),
     );
-  }, [groups, view, q]);
+  }, [groups, view, q, room, source, pay]);
+  const filtering = room !== "any" || source !== "any" || pay !== "any" || q !== "";
+  const paged = usePaged(rows, [view, q, room, source, pay, range.from, range.to]);
 
   function open(id: string) {
     navigate(`/admin/bookings/${id}`);
@@ -170,14 +187,50 @@ export default function Bookings() {
           />
           <SearchField value={q} onChange={setQ} placeholder="Search guest, ref, phone" />
       </Toolbar>
+      <ToolbarGroup className="mb-3">
+        <FilterSelect
+          label="Room"
+          value={room}
+          onChange={setRoom}
+          options={[{ value: "any", label: "All rooms" }, ...(units ?? []).map((u) => ({ value: u.id, label: u.name }))]}
+        />
+        <FilterSelect
+          label="Source"
+          value={source}
+          onChange={setSource}
+          options={[
+            { value: "any" as const, label: "All sources" },
+            ...(Object.keys(SOURCE_LABEL) as BookingSource[]).map((k) => ({ value: k, label: SOURCE_LABEL[k] })),
+          ]}
+        />
+        <FilterSelect
+          label="Payment"
+          value={pay}
+          onChange={setPay}
+          options={[
+            { value: "any", label: "Any payment" },
+            { value: "due", label: "Balance due" },
+            { value: "paid", label: "Paid in full" },
+          ]}
+        />
+        <ClearFilters
+          active={filtering}
+          onClear={() => {
+            setQ("");
+            setRoom("any");
+            setSource("any");
+            setPay("any");
+          }}
+        />
+      </ToolbarGroup>
 
       <Card className="overflow-hidden">
         <div>
           {isLoading ? (
             <Spinner />
           ) : rows.length === 0 ? (
-            <EmptyState icon={<ClipboardList className="size-8" />} title={q ? "No matches" : "Nothing here"}>
-              {view === "action" && !q ? "New website requests show up here for you to confirm." : undefined}
+            <EmptyState icon={<ClipboardList className="size-8" />} title={filtering ? "No matches" : "Nothing here"}>
+              {view === "action" && !filtering ? "New website requests show up here for you to confirm." : undefined}
             </EmptyState>
           ) : (
             <>
@@ -190,10 +243,13 @@ export default function Bookings() {
                     <th className="px-4 py-2.5 font-medium">Status</th>
                     <th className="px-4 py-2.5 text-right font-medium">Total</th>
                     <th className="px-4 py-2.5 text-right font-medium">Balance</th>
+                    <th className="w-24 px-4 py-2.5">
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-sand-200">
-                  {rows.map((b) => (
+                  {paged.items.map((b) => (
                     <tr key={b.id} onClick={() => open(b.id)} className="cursor-pointer hover:bg-sand-50">
                       <td className="px-4 py-3">
                         <p className="font-medium">{b.guest_name}</p>
@@ -217,12 +273,15 @@ export default function Bookings() {
                       >
                         {money(b.balance)}
                       </td>
+                      <td className="px-4 py-3 text-right">
+                        <ViewButton onClick={() => open(b.id)} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               <ul className="divide-y divide-sand-200 md:hidden">
-                {rows.map((b) => (
+                {paged.items.map((b) => (
                   <li key={b.id}>
                     <button onClick={() => open(b.id)} className="w-full px-4 py-3 text-left hover:bg-sand-50">
                       <div className="flex items-start justify-between gap-2">
@@ -240,6 +299,7 @@ export default function Bookings() {
                   </li>
                 ))}
               </ul>
+              <Pagination paged={paged} noun="booking" />
             </>
           )}
         </div>

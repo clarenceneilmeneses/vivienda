@@ -8,11 +8,14 @@ import { STAY_STATUSES, type BookingSummary, type Guest } from "../../lib/types"
 import {
   Button,
   Card,
+  ClearFilters,
   EmptyState,
   Field,
+  FilterSelect,
   Input,
   Modal,
   PageHeader,
+  Pagination,
   SearchField,
   Spinner,
   StatGrid,
@@ -20,9 +23,14 @@ import {
   StatusBadge,
   Textarea,
   Toolbar,
+  ToolbarGroup,
+  usePaged,
+  ViewButton,
 } from "../../components/ui";
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
 import { useAllBookings } from "./Bookings";
+
+type Kind = "all" | "stayed" | "repeat" | "never" | "account" | "owing";
 
 interface GuestRow extends Guest {
   stays: number;
@@ -33,6 +41,7 @@ interface GuestRow extends Guest {
 
 export default function Guests() {
   const [q, setQ] = useState("");
+  const [kind, setKind] = useState<Kind>("all");
   const [selected, setSelected] = useState<string | null>(null);
   const [openBooking, setOpenBooking] = useState<string | null>(null);
 
@@ -67,9 +76,27 @@ export default function Guests() {
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((g) => [g.full_name, g.email, g.phone].some((v) => v?.toLowerCase().includes(term)));
-  }, [rows, q]);
+    const ofKind = (g: GuestRow) => {
+      switch (kind) {
+        case "stayed":
+          return g.stays > 0;
+        case "repeat":
+          return g.stays >= 2;
+        case "never":
+          return g.stays === 0;
+        case "account":
+          return !!(g as unknown as { user_id?: string | null }).user_id;
+        case "owing":
+          return g.bookings.some((b) => STAY_STATUSES.includes(b.status) && b.balance > 0.009);
+        default:
+          return true;
+      }
+    };
+    return rows.filter(
+      (g) => ofKind(g) && (!term || [g.full_name, g.email, g.phone].some((v) => v?.toLowerCase().includes(term))),
+    );
+  }, [rows, q, kind]);
+  const paged = usePaged(filtered, [q, kind]);
 
   const current = rows.find((g) => g.id === selected) ?? null;
   const repeat = rows.filter((g) => g.stays >= 2).length;
@@ -110,15 +137,37 @@ export default function Guests() {
 
       <Toolbar>
         <span className="text-sm text-ink-muted">{plural(filtered.length, "guest")}</span>
-        <SearchField value={q} onChange={setQ} placeholder="Search name, email, phone" />
+        <ToolbarGroup>
+          <FilterSelect
+            label="Show"
+            value={kind}
+            onChange={setKind}
+            options={[
+              { value: "all", label: "All guests" },
+              { value: "stayed", label: "Have stayed" },
+              { value: "repeat", label: "Repeat guests" },
+              { value: "never", label: "Never stayed" },
+              { value: "account", label: "With an account" },
+              { value: "owing", label: "Balance due" },
+            ]}
+          />
+          <SearchField value={q} onChange={setQ} placeholder="Search name, email, phone" />
+          <ClearFilters
+            active={kind !== "all" || q !== ""}
+            onClear={() => {
+              setQ("");
+              setKind("all");
+            }}
+          />
+        </ToolbarGroup>
       </Toolbar>
 
       <Card className="overflow-hidden">
         {isLoading ? (
           <Spinner />
         ) : filtered.length === 0 ? (
-          <EmptyState icon={<Users className="size-8" />} title={q ? "No matches" : "No guests yet"}>
-            {!q && "Guests are added automatically when they book."}
+          <EmptyState icon={<Users className="size-8" />} title={q || kind !== "all" ? "No matches" : "No guests yet"}>
+            {!q && kind === "all" && "Guests are added automatically when they book."}
           </EmptyState>
         ) : (
           <div className="overflow-x-auto lg:overflow-visible">
@@ -130,10 +179,13 @@ export default function Guests() {
                   <th className="px-4 py-2.5 text-right font-medium">Stays</th>
                   <th className="hidden px-4 py-2.5 text-right font-medium sm:table-cell">Paid</th>
                   <th className="hidden px-4 py-2.5 font-medium md:table-cell">Last stay</th>
+                  <th className="w-24 px-4 py-2.5">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-sand-200">
-                {filtered.map((g) => (
+                {paged.items.map((g) => (
                   <tr key={g.id} onClick={() => setSelected(g.id)} className="cursor-pointer hover:bg-sand-50">
                     <td className="px-4 py-3">
                       <p className="font-medium">{g.full_name}</p>
@@ -151,10 +203,14 @@ export default function Guests() {
                     </td>
                     <td className="hidden px-4 py-3 text-right tabular-nums sm:table-cell">{money(g.spent, true)}</td>
                     <td className="hidden px-4 py-3 text-ink-soft md:table-cell">{prettyDate(g.lastStay)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <ViewButton onClick={() => setSelected(g.id)} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <Pagination paged={paged} noun="guest" />
           </div>
         )}
       </Card>

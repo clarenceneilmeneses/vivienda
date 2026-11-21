@@ -12,17 +12,24 @@ import {
   Badge,
   Button,
   Card,
+  ClearFilters,
   EmptyState,
   ErrorBox,
   Field,
+  FilterSelect,
   Input,
   Modal,
   PageHeader,
+  Pagination,
+  SearchField,
   Select,
   Spinner,
   StatTile,
   Tabs,
   Textarea,
+  Toolbar,
+  ToolbarGroup,
+  usePaged,
 } from "../../components/ui";
 import { Stars } from "../../components/public/StayBits";
 
@@ -40,6 +47,10 @@ export default function Reviews() {
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [q, setQ] = useState("");
+  const [stars, setStars] = useState("any");
+  const [source, setSource] = useState<"any" | ReviewSource>("any");
+  const [replied, setReplied] = useState<"any" | "yes" | "no">("any");
 
   const { data: rows, isLoading, error } = useQuery({
     queryKey: ["reviews", "admin"],
@@ -61,6 +72,21 @@ export default function Reviews() {
       hidden: list.filter((r) => r.status === "hidden"),
     };
   }, [rows]);
+  const shown = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return groups[view].filter(
+      (r) =>
+        (stars === "any" || r.rating === Number(stars)) &&
+        (source === "any" || (r.source ?? "website") === source) &&
+        (replied === "any" || (replied === "yes") === Boolean(r.host_reply)) &&
+        (!term ||
+          [r.reviewer_name, r.guest?.full_name, r.guest?.email, r.booking?.ref, r.body].some((v) =>
+            v?.toLowerCase().includes(term),
+          )),
+    );
+  }, [groups, view, q, stars, source, replied]);
+  const filtering = q !== "" || stars !== "any" || source !== "any" || replied !== "any";
+  const paged = usePaged(shown, [view, q, stars, source, replied], 10);
   const published = groups.published;
   const avg = published.length ? published.reduce((s, r) => s + r.rating, 0) / published.length : null;
 
@@ -117,16 +143,57 @@ export default function Reviews() {
         <StatTile label="Facebook recommendations" value={REVIEWS.length} sub="Shown beside the reviews" />
       </div>
 
-      <Tabs
-        className="mb-4"
-        value={view}
-        onChange={setView}
-        items={[
-          { value: "pending", label: "To publish", count: groups.pending.length },
-          { value: "published", label: "Published", count: groups.published.length },
-          { value: "hidden", label: "Hidden", count: groups.hidden.length },
-        ]}
-      />
+      <Toolbar>
+        <Tabs
+          value={view}
+          onChange={setView}
+          items={[
+            { value: "pending", label: "To publish", count: groups.pending.length },
+            { value: "published", label: "Published", count: groups.published.length },
+            { value: "hidden", label: "Hidden", count: groups.hidden.length },
+          ]}
+        />
+        <SearchField value={q} onChange={setQ} placeholder="Search name, ref, words" />
+      </Toolbar>
+      <ToolbarGroup className="mb-4">
+        <FilterSelect
+          label="Rating"
+          value={stars}
+          onChange={setStars}
+          options={[
+            { value: "any", label: "Any rating" },
+            ...[5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${"★".repeat(n)} ${n} star${n > 1 ? "s" : ""}` })),
+          ]}
+        />
+        <FilterSelect
+          label="Source"
+          value={source}
+          onChange={setSource}
+          options={[
+            { value: "any" as const, label: "All sources" },
+            ...(Object.keys(REVIEW_SOURCE_LABEL) as ReviewSource[]).map((k) => ({ value: k, label: REVIEW_SOURCE_LABEL[k] })),
+          ]}
+        />
+        <FilterSelect
+          label="Reply"
+          value={replied}
+          onChange={setReplied}
+          options={[
+            { value: "any", label: "Replied or not" },
+            { value: "no", label: "Not replied" },
+            { value: "yes", label: "Replied" },
+          ]}
+        />
+        <ClearFilters
+          active={filtering}
+          onClear={() => {
+            setQ("");
+            setStars("any");
+            setSource("any");
+            setReplied("any");
+          }}
+        />
+      </ToolbarGroup>
 
       {isLoading ? (
         <Spinner />
@@ -135,13 +202,14 @@ export default function Reviews() {
           Reviews aren't set up yet. Run the latest <code className="rounded bg-sand-100 px-1">supabase/schema.sql</code> in
           Supabase.
         </Card>
-      ) : groups[view].length === 0 ? (
+      ) : shown.length === 0 ? (
         <Card>
-          <EmptyState icon={<Star />} title={view === "pending" ? "All caught up" : "Nothing here"} />
+          <EmptyState icon={<Star />} title={filtering ? "No matches" : view === "pending" ? "All caught up" : "Nothing here"} />
         </Card>
       ) : (
+        <>
         <div className="grid gap-4 lg:grid-cols-2">
-          {groups[view].map((r) => (
+          {paged.items.map((r) => (
             <Card key={r.id} className="flex flex-col p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -199,6 +267,10 @@ export default function Reviews() {
             </Card>
           ))}
         </div>
+        <Card className="mt-4 overflow-hidden [&>div]:border-t-0">
+          <Pagination paged={paged} noun="review" />
+        </Card>
+        </>
       )}
 
       <Modal

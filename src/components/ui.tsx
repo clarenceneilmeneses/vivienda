@@ -10,7 +10,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, Search as SearchIcon, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Loader2, Search as SearchIcon, X } from "lucide-react";
 import { cn } from "../lib/utils";
 import type { BookingStatus } from "../lib/types";
 import { STATUS_LABEL } from "../lib/types";
@@ -610,4 +610,176 @@ export function SearchField({
 /** The row of stat cards at the top of a page. */
 export function StatGrid({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn("mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4", className)}>{children}</div>;
+}
+
+/**
+ * A filter shaped like the search pill: a white, lifted, rounded select.
+ * Reads as set (brand ring) whenever it is off its first option.
+ */
+export function FilterSelect<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+  className,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+  /** Says what the filter is about, for screen readers and the tooltip. */
+  label: string;
+  className?: string;
+}) {
+  const set = options.length > 0 && value !== options[0].value;
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as T)}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "h-[42px] cursor-pointer rounded-full border bg-white pr-8 pl-4 text-sm shadow-level-1 focus:border-brand-700/50 focus:outline-none",
+        set ? "border-brand-700/40 font-medium text-brand-700" : "border-sand-200/80 text-ink",
+        className,
+      )}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** The right side of a toolbar: search, filters and a clear button, wrapping on a phone. */
+export function ToolbarGroup({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("flex flex-wrap items-center gap-2", className)}>{children}</div>;
+}
+
+/** Shows "Clear filters" only while something is set. */
+export function ClearFilters({ active, onClear }: { active: boolean; onClear: () => void }) {
+  if (!active) return null;
+  return (
+    <button
+      type="button"
+      onClick={onClear}
+      className="inline-flex h-[42px] cursor-pointer items-center gap-1 rounded-full px-3 text-sm text-ink-muted hover:bg-sand-100 hover:text-ink"
+    >
+      <X className="size-3.5" /> Clear
+    </button>
+  );
+}
+
+export const PAGE_SIZES = [10, 25, 50, 100] as const;
+
+/**
+ * Slices a list into pages. Goes back to page 1 whenever `resetKey` changes
+ * (a new tab, search or filter), and never sits past the last page.
+ */
+export function usePaged<T>(rows: T[], resetKey: unknown, initialSize = 25) {
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState<number>(initialSize);
+  const key = JSON.stringify(resetKey);
+  useEffect(() => setPage(1), [key, size]);
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  const current = Math.min(page, pages);
+  const start = (current - 1) * size;
+  return {
+    items: rows.slice(start, start + size),
+    page: current,
+    pages,
+    size,
+    total: rows.length,
+    start,
+    setPage,
+    setSize,
+  };
+}
+
+/** The footer under a paged table: where you are, rows per page, and the page buttons. */
+export function Pagination({
+  paged,
+  noun = "row",
+}: {
+  paged: Pick<ReturnType<typeof usePaged<unknown>>, "page" | "pages" | "size" | "total" | "start" | "setPage" | "setSize">;
+  noun?: string;
+}) {
+  const { page, pages, size, total, start, setPage, setSize } = paged;
+  if (total === 0) return null;
+  const end = Math.min(start + size, total);
+  // Up to five page numbers around the current one, with the first and last always there.
+  const nums: (number | "…")[] = [];
+  const lo = Math.max(1, Math.min(page - 2, pages - 4));
+  const hi = Math.min(pages, lo + 4);
+  if (lo > 1) nums.push(1, ...(lo > 2 ? (["…"] as const) : []));
+  for (let i = lo; i <= hi; i++) nums.push(i);
+  if (hi < pages) nums.push(...(hi < pages - 1 ? (["…"] as const) : []), pages);
+  const btn =
+    "grid h-8 min-w-8 cursor-pointer place-items-center rounded-lg px-2 text-sm tabular-nums transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+  return (
+    <div className="flex flex-col gap-2 border-t border-sand-200 px-4 py-3 text-sm text-ink-muted sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <span className="tabular-nums">
+          {start + 1}–{end} of {total} {total === 1 ? noun : `${noun}s`}
+        </span>
+        <label className="flex items-center gap-1.5">
+          <span className="hidden sm:inline">Show</span>
+          <select
+            value={size}
+            onChange={(e) => setSize(Number(e.target.value))}
+            aria-label="Rows per page"
+            className="h-8 cursor-pointer rounded-lg border border-sand-300 bg-white px-2 text-sm text-ink focus:outline-none"
+          >
+            {PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {pages > 1 && (
+        <nav className="flex items-center gap-1" aria-label="Pages">
+          <button type="button" className={cn(btn, "hover:bg-sand-100")} disabled={page === 1} onClick={() => setPage(page - 1)} aria-label="Previous page" title="Previous page">
+            <ChevronLeft className="size-4" />
+          </button>
+          {nums.map((n, i) =>
+            n === "…" ? (
+              <span key={`gap${i}`} className="px-1">…</span>
+            ) : (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setPage(n)}
+                aria-current={n === page ? "page" : undefined}
+                className={cn(btn, n === page ? "bg-brand-700 font-medium text-sand-50" : "text-ink hover:bg-sand-100")}
+              >
+                {n}
+              </button>
+            ),
+          )}
+          <button type="button" className={cn(btn, "hover:bg-sand-100")} disabled={page === pages} onClick={() => setPage(page + 1)} aria-label="Next page" title="Next page">
+            <ChevronRight className="size-4" />
+          </button>
+        </nav>
+      )}
+    </div>
+  );
+}
+
+/** A row's "View" button: opens the record. Stops the click so the row's own handler doesn't fire twice. */
+export function ViewButton({ onClick, label = "View" }: { onClick: () => void; label?: string }) {
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      <Eye className="size-3.5" /> {label}
+    </Button>
+  );
 }

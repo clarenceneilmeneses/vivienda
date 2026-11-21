@@ -20,17 +20,24 @@ import {
   ask,
   Card,
   CardHeader,
+  ClearFilters,
   EmptyState,
   ErrorBox,
   Field,
+  FilterSelect,
   Input,
   Modal,
   PageHeader,
+  Pagination,
+  SearchField,
   Select,
   Spinner,
   StatTile,
   Tabs,
   Toolbar,
+  ToolbarGroup,
+  usePaged,
+  ViewButton,
 } from "../../components/ui";
 import { IncomeExpenseChart, SERIES, ShareBars, type MonthPoint } from "../../components/admin/Charts";
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
@@ -55,6 +62,12 @@ export default function Finance() {
   const [asTable, setAsTable] = useState(false);
   const [editing, setEditing] = useState<Expense | "new" | null>(null);
   const [openBooking, setOpenBooking] = useState<string | null>(null);
+  // The list's own search and filters, under the tabs.
+  const [fq, setFq] = useState("");
+  const [method, setMethod] = useState<"any" | PaymentMethod>("any");
+  const [kind, setKind] = useState<"any" | "payment" | "refund">("any");
+  const [category, setCategory] = useState("any");
+  const [room, setRoom] = useState("any");
 
   const yearFrom = range.from < `${year}-01-01` ? range.from : `${year}-01-01`;
   const yearTo = `${year}-12-31`;
@@ -132,6 +145,47 @@ export default function Finance() {
   }, [periodPayments, units]);
 
   const periodLabel = range.name;
+
+  const term = fq.trim().toLowerCase();
+  const has = (...vals: (string | null | undefined)[]) => !term || vals.some((v) => v?.toLowerCase().includes(term));
+  const shownPayments = useMemo(
+    () =>
+      periodPayments.filter(
+        (p) =>
+          (method === "any" || p.method === method) &&
+          (kind === "any" || p.kind === kind) &&
+          (room === "any" || p.booking?.unit_id === room) &&
+          has(p.booking?.guest?.full_name, p.booking?.ref, p.reference, p.notes),
+      ),
+    [periodPayments, method, kind, room, term], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const shownExpenses = useMemo(
+    () =>
+      periodExpenses.filter(
+        (e) => (category === "any" || e.category === category) && has(e.description, e.vendor, e.notes),
+      ),
+    [periodExpenses, category, term], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const shownUnpaid = useMemo(
+    () => unpaid.filter((b) => (room === "any" || b.unit_id === room) && has(b.guest_name, b.ref, b.guest_phone, b.unit_name)),
+    [unpaid, room, term], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const pagedPayments = usePaged(shownPayments, [term, method, kind, room, range.from, range.to]);
+  const pagedExpenses = usePaged(shownExpenses, [term, category, range.from, range.to]);
+  const pagedUnpaid = usePaged(shownUnpaid, [term, room]);
+  const filtering =
+    fq !== "" ||
+    (tab === "payments" && (method !== "any" || kind !== "any" || room !== "any")) ||
+    (tab === "expenses" && category !== "any") ||
+    (tab === "unpaid" && room !== "any");
+  function clearFilters() {
+    setFq("");
+    setMethod("any");
+    setKind("any");
+    setCategory("any");
+    setRoom("any");
+  }
+  const roomOptions = [{ value: "any", label: "All rooms" }, ...(units ?? []).map((u) => ({ value: u.id, label: u.name }))];
 
   async function deleteExpense(e: Expense) {
     const ok = await ask({
@@ -237,7 +291,10 @@ export default function Finance() {
       <Toolbar className="mt-6">
           <Tabs
             value={tab}
-            onChange={setTab}
+            onChange={(t) => {
+              setTab(t);
+              clearFilters();
+            }}
             className="border-b-0"
             items={[
               { value: "payments", label: "Payments", count: periodPayments.length },
@@ -252,7 +309,7 @@ export default function Finance() {
               if (tab === "payments")
                 downloadCsv(`payments-${stamp}.csv`, [
                   ["Date", "Type", "Amount", "Method", "Booking", "Guest", "Reference", "Notes"],
-                  ...periodPayments.map((p) => [
+                  ...shownPayments.map((p) => [
                     p.paid_on,
                     p.kind,
                     signed(p),
@@ -266,30 +323,84 @@ export default function Finance() {
               else if (tab === "expenses")
                 downloadCsv(`expenses-${stamp}.csv`, [
                   ["Date", "Category", "Description", "Vendor", "Amount", "Notes"],
-                  ...periodExpenses.map((e) => [e.spent_on, categoryLabel(e.category), e.description, e.vendor, e.amount, e.notes]),
+                  ...shownExpenses.map((e) => [e.spent_on, categoryLabel(e.category), e.description, e.vendor, e.amount, e.notes]),
                 ]);
               else
                 downloadCsv(`unpaid-${isoDate(new Date())}.csv`, [
                   ["Booking", "Guest", "Phone", "Check-in", "Total", "Paid", "Balance"],
-                  ...unpaid.map((b) => [b.ref, b.guest_name, b.guest_phone, b.check_in, b.total, b.paid, b.balance]),
+                  ...shownUnpaid.map((b) => [b.ref, b.guest_name, b.guest_phone, b.check_in, b.total, b.paid, b.balance]),
                 ]);
             }}
           >
             <Download className="size-4" /> Export CSV
           </Button>
       </Toolbar>
+      <ToolbarGroup className="mb-3">
+        <SearchField
+          value={fq}
+          onChange={setFq}
+          placeholder={
+            tab === "payments" ? "Search guest, ref, reference" : tab === "expenses" ? "Search description, vendor" : "Search guest, ref, phone"
+          }
+        />
+        {tab === "payments" && (
+          <>
+            <FilterSelect
+              label="Method"
+              value={method}
+              onChange={setMethod}
+              options={[
+                { value: "any" as const, label: "All methods" },
+                ...(Object.keys(METHOD_LABEL) as PaymentMethod[]).map((k) => ({ value: k, label: METHOD_LABEL[k] })),
+              ]}
+            />
+            <FilterSelect
+              label="Type"
+              value={kind}
+              onChange={setKind}
+              options={[
+                { value: "any", label: "Payments & refunds" },
+                { value: "payment", label: "Payments only" },
+                { value: "refund", label: "Refunds only" },
+              ]}
+            />
+          </>
+        )}
+        {tab === "expenses" && (
+          <FilterSelect
+            label="Category"
+            value={category}
+            onChange={setCategory}
+            options={[{ value: "any", label: "All categories" }, ...EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))]}
+          />
+        )}
+        {tab !== "expenses" && <FilterSelect label="Room" value={room} onChange={setRoom} options={roomOptions} />}
+        <ClearFilters active={filtering} onClear={clearFilters} />
+      </ToolbarGroup>
 
       <Card className="overflow-hidden">
         <div>
           {tab === "payments" &&
-            (periodPayments.length === 0 ? (
-              <EmptyState icon={<Receipt className="size-8" />} title="No payments in this period">
-                Record payments from a booking's detail panel.
+            (shownPayments.length === 0 ? (
+              <EmptyState icon={<Receipt className="size-8" />} title={filtering ? "No matches" : "No payments in this period"}>
+                {filtering ? undefined : "Record payments from a booking's detail panel."}
               </EmptyState>
             ) : (
-              <table className="w-full text-sm">
+              <>
+              <table className="admin-table w-full text-sm">
+                <thead className="text-left text-xs text-ink-muted">
+                  <tr className="border-b border-sand-200">
+                    <th className="px-4 py-2.5 font-medium">Date</th>
+                    <th className="px-4 py-2.5 font-medium">Guest</th>
+                    <th className="px-4 py-2.5 font-medium hidden sm:table-cell">Method</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Amount</th>
+                    <th className="w-24 px-4 py-2.5">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-sand-200">
-                  {periodPayments.map((p) => (
+                  {pagedPayments.items.map((p) => (
                     <tr
                       key={p.id}
                       className="cursor-pointer hover:bg-sand-50"
@@ -308,16 +419,21 @@ export default function Finance() {
                         {p.kind === "refund" ? "−" : ""}
                         {money(p.amount)}
                       </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <ViewButton onClick={() => setOpenBooking(p.booking_id)} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <Pagination paged={pagedPayments} noun="payment" />
+              </>
             ))}
           {tab === "expenses" &&
-            (periodExpenses.length === 0 ? (
+            (shownExpenses.length === 0 ? (
               <EmptyState
                 icon={<Receipt className="size-8" />}
-                title="No expenses in this period"
+                title={filtering ? "No matches" : "No expenses in this period"}
                 action={
                   <Button size="sm" onClick={() => setEditing("new")}>
                     <Plus className="size-4" /> Add expense
@@ -327,9 +443,20 @@ export default function Finance() {
                 Record bills, salaries and supplies to see your real profit.
               </EmptyState>
             ) : (
-              <table className="w-full text-sm">
+              <>
+              <table className="admin-table w-full text-sm">
+                <thead className="text-left text-xs text-ink-muted">
+                  <tr className="border-b border-sand-200">
+                    <th className="px-4 py-2.5 font-medium">Date</th>
+                    <th className="px-4 py-2.5 font-medium">Expense</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Amount</th>
+                    <th className="w-24 px-4 py-2.5">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-sand-200">
-                  {periodExpenses.map((e) => (
+                  {pagedExpenses.items.map((e) => (
                     <tr key={e.id} className="group">
                       <td className="px-4 py-2.5 whitespace-nowrap text-ink-soft">{prettyDate(e.spent_on, "MMM d")}</td>
                       <td className="px-4 py-2.5">
@@ -360,14 +487,28 @@ export default function Finance() {
                   ))}
                 </tbody>
               </table>
+              <Pagination paged={pagedExpenses} noun="expense" />
+              </>
             ))}
           {tab === "unpaid" &&
-            (unpaid.length === 0 ? (
-              <EmptyState title="Everyone's paid up" />
+            (shownUnpaid.length === 0 ? (
+              <EmptyState title={filtering ? "No matches" : "Everyone's paid up"} />
             ) : (
-              <table className="w-full text-sm">
+              <>
+              <table className="admin-table w-full text-sm">
+                <thead className="text-left text-xs text-ink-muted">
+                  <tr className="border-b border-sand-200">
+                    <th className="px-4 py-2.5 font-medium">Check-in</th>
+                    <th className="px-4 py-2.5 font-medium">Guest</th>
+                    <th className="px-4 py-2.5 font-medium hidden text-right sm:table-cell">Paid</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Balance</th>
+                    <th className="w-24 px-4 py-2.5">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-sand-200">
-                  {unpaid.map((b) => (
+                  {pagedUnpaid.items.map((b) => (
                     <tr key={b.id} className="cursor-pointer hover:bg-sand-50" onClick={() => setOpenBooking(b.id)}>
                       <td className="px-4 py-2.5 whitespace-nowrap text-ink-soft">{prettyDate(b.check_in, "MMM d")}</td>
                       <td className="px-4 py-2.5">
@@ -380,10 +521,15 @@ export default function Finance() {
                         {money(b.paid)} of {money(b.total)}
                       </td>
                       <td className="px-4 py-2.5 text-right font-medium text-terra-600 tabular-nums">{money(b.balance)}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <ViewButton onClick={() => setOpenBooking(b.id)} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <Pagination paged={pagedUnpaid} noun="booking" />
+              </>
             ))}
         </div>
       </Card>
