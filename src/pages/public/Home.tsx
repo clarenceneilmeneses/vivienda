@@ -1,32 +1,17 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  BedDouble,
-  Check,
-  CheckCircle2,
-  Grid3X3,
-  MapPin,
-  Quote,
-  Sparkles,
-  ThumbsUp,
-  Users,
-  Waves,
-  Wifi,
-  X,
-  XCircle,
-} from "lucide-react";
+import { ArrowRight, BedDouble, Grid3X3, Sparkles } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useSettings, useUnavailableNights, useUnits } from "../../lib/queries";
-import { isoDate, money, nightsBetween, prettyDate, prettyTime } from "../../lib/format";
-import { DEFAULT_AMENITIES, GALLERY, LOCATION_LABEL, PHOTOS, PROMO, RECOMMEND, SITE, SLEEPING } from "../../lib/site";
+import { isoDate, money, nightsBetween, prettyDate } from "../../lib/format";
+import { GALLERY, LOCATION_LABEL, PHOTOS, PROMO, RECOMMEND, SITE } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import { EmptyState } from "../../components/ui";
 import { SearchPill, type StaySearch } from "../../components/public/SearchPill";
-import { unitPhotos } from "../../components/public/StayBits";
 import { ReviewerAvatar, SourceLogo, TestimonialSection, toTestimonials } from "../../components/public/Reviews";
 import { usePublishedReviews } from "../../lib/guest";
+import { AmenityGrid, DriftGallery, StayFeature } from "../../components/public/HomeSections";
 import type { Unit } from "../../lib/types";
 
 /**
@@ -153,7 +138,8 @@ export default function Home() {
               Call {s?.phone || SITE.phone} or message us on Facebook to reserve your stay.
             </EmptyState>
           ) : (
-            <ResortCard
+            <StayFeature
+              about={s?.about}
               unit={resort}
               href={stayHref(resort)}
               search={
@@ -175,23 +161,7 @@ export default function Home() {
             />
           )}
 
-          {/* Everything inside the gate, in one quiet block under the card. */}
-          <div className="mt-8 grid gap-6 rounded-3xl border border-sand-300/50 bg-white/60 p-6 sm:p-8 lg:grid-cols-[16rem_1fr] lg:gap-10">
-            <div>
-              <h3 className="site-display text-brand-heading text-xl leading-tight">Included in every stay</h3>
-              <p className="mt-2 text-sm text-ink-soft">
-                Check-in {prettyTime(s?.check_in_time || "14:00")} · check-out {prettyTime(s?.check_out_time || "12:00")}
-              </p>
-            </div>
-            <ul className="grid gap-x-6 gap-y-2.5 text-sm text-ink sm:grid-cols-2 lg:grid-cols-3">
-              {DEFAULT_AMENITIES.map((a) => (
-                <li key={a} className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand-700" />
-                  {a}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <AmenityGrid checkIn={s?.check_in_time} checkOut={s?.check_out_time} />
 
           {promoOn && PROMO && (
             <div className="relative mt-8 overflow-hidden rounded-3xl bg-brand-700 text-sand-50 shadow-level-3">
@@ -226,7 +196,12 @@ export default function Home() {
 
       {/* ── The photos, on white ── */}
       <Curve color={LINEN} edge="bottom" flip />
-      <PhotoGallery open={photosOpen} onOpen={() => setPhotosOpen(true)} onClose={() => setPhotosOpen(false)} />
+      <DriftGallery
+        open={photosOpen}
+        onOpen={() => setPhotosOpen(true)}
+        onClose={() => setPhotosOpen(false)}
+        heading={<Heading eyebrow="Inside one gate" title="A look around" />}
+      />
 
       {/* ── The reviews, on espresso ── */}
       {testimonials.length > 0 && (
@@ -313,8 +288,6 @@ function Hero({
 }) {
   const faces = testimonials.slice(0, 5);
   const good = testimonials.filter((t) => (t.rating == null ? t.recommends : t.rating >= 4)).length;
-  // A short one reads whole on the card.
-  const quote = [...testimonials].filter((t) => t.body.length >= 50).sort((a, b) => a.body.length - b.body.length)[0];
   return (
     <section className="relative bg-espresso text-sand-50">
       <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 pt-10 pb-6 sm:px-8 sm:pt-14 lg:grid-cols-[1fr_1.05fr] lg:gap-16 lg:pt-16 lg:pb-10">
@@ -383,22 +356,6 @@ function Hero({
             <Framed photo={PHOTOS.billiards} className="col-span-2" onClick={onPhotos} />
             <Framed photo={PHOTOS.aframeLoft} className="col-span-2" onClick={onPhotos} />
           </div>
-          {quote && (
-            <figure className="absolute bottom-0 -left-4 hidden w-[17rem] rounded-2xl bg-white p-5 text-ink shadow-level-4 sm:block lg:-left-10">
-              <div className="flex items-start justify-between gap-3">
-                <Quote className="size-5 rotate-180 fill-brand-700 text-brand-700" aria-hidden />
-                <SourceLogo source={quote.source} className="size-4" />
-              </div>
-              <blockquote className="mt-3 line-clamp-3 text-sm leading-relaxed text-ink-soft">{quote.body}</blockquote>
-              <figcaption className="mt-4 flex items-center gap-2.5 border-t border-sand-200/70 pt-3.5">
-                <ReviewerAvatar name={quote.author} url={quote.avatarUrl} className="size-8 text-xs" />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">{quote.author}</span>
-                  <span className="block truncate text-xs text-ink-muted">{quote.month}</span>
-                </span>
-              </figcaption>
-            </figure>
-          )}
         </div>
       </div>
 
@@ -441,195 +398,3 @@ function Framed({
   );
 }
 
-/** Every photo, at its own shape, in columns: the masonry. All 24 one click away. */
-function PhotoGallery({ open, onOpen, onClose }: { open: boolean; onOpen: () => void; onClose: () => void }) {
-  const shown = GALLERY.slice(0, 12);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [open, onClose]);
-
-  return (
-    <section id="gallery" className="scroll-mt-24 px-4 pt-6 pb-10 sm:px-8 sm:pt-8 sm:pb-14">
-      <div className="mx-auto max-w-7xl">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <Heading eyebrow="Inside one gate" title="A look around" />
-          <button
-            type="button"
-            onClick={onOpen}
-            className="mb-7 inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-sand-300 px-5 text-sm font-medium text-ink hover:bg-sand-100 sm:mb-10"
-          >
-            <Grid3X3 className="size-4" /> See all {GALLERY.length} photos
-          </button>
-        </div>
-        <div className="relative">
-          <div className="max-h-[680px] columns-2 gap-3 overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent)] sm:max-h-[860px] md:columns-3 lg:max-h-[760px] lg:columns-4 lg:gap-4">
-            {shown.map((p) => (
-              <button
-                key={p.src}
-                type="button"
-                onClick={onOpen}
-                className="group mb-3 block w-full cursor-pointer overflow-hidden rounded-2xl bg-sand-100 break-inside-avoid lg:mb-4"
-              >
-                <img
-                  src={p.src}
-                  alt={p.alt}
-                  loading="lazy"
-                  className="h-auto w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
-                />
-              </button>
-            ))}
-          </div>
-          {/* The photos fade out into a way to see the rest. */}
-          <div className="absolute inset-x-0 bottom-6 flex justify-center">
-            <button
-              type="button"
-              onClick={onOpen}
-              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-espresso px-6 text-sm font-medium text-sand-50 shadow-level-3 hover:bg-espresso-soft"
-            >
-              <Grid3X3 className="size-4" /> See all {GALLERY.length} photos
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-white" role="dialog" aria-modal="true" aria-label="All photos">
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-sand-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-8">
-            <p className="font-medium text-ink">Vivienda · {GALLERY.length} photos</p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="grid size-9 cursor-pointer place-items-center rounded-full hover:bg-sand-100"
-              aria-label="Close photos"
-            >
-              <X className="size-5" />
-            </button>
-          </div>
-          <div className="mx-auto max-w-6xl columns-1 gap-3 px-4 py-6 sm:columns-2 sm:px-8 lg:columns-3">
-            {GALLERY.map((p) => (
-              <figure key={p.src} className="mb-3 break-inside-avoid">
-                <img src={p.src} alt={p.alt} loading="lazy" className="w-full rounded-xl" />
-                <figcaption className="mt-1.5 text-xs text-ink-muted">{p.alt}</figcaption>
-              </figure>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-interface SearchState {
-  label: string;
-  nights: number;
-  loading: boolean;
-  free: boolean | null;
-  total: number | null;
-  tooMany: boolean;
-  onClear: () => void;
-}
-
-/** The one resort, as a feature: photo mosaic on the left, the facts and the price on the right. */
-function ResortCard({ unit, href, search }: { unit: Unit; href: string; search: SearchState | null }) {
-  const photos = unitPhotos(unit).slice(0, 3);
-  const booked = search?.free === false;
-  return (
-    <div className="grid overflow-hidden rounded-3xl bg-white shadow-level-3 lg:grid-cols-[1.25fr_1fr]">
-      <Link to={href} className="group grid h-72 grid-cols-3 grid-rows-2 gap-1.5 p-1.5 sm:h-[420px]">
-        {photos.map((src, i) => (
-          <div
-            key={src}
-            className={cn(
-              "overflow-hidden bg-sand-100",
-              i === 0 ? "col-span-2 row-span-2 rounded-l-[20px]" : i === 1 ? "rounded-tr-[20px]" : "rounded-br-[20px]",
-            )}
-          >
-            <img src={src} alt="" loading="lazy" className="size-full object-cover transition-transform duration-700 group-hover:scale-105" />
-          </div>
-        ))}
-      </Link>
-
-      <div className="flex flex-col p-6 sm:p-8">
-        <h3 className="site-display text-3xl leading-tight text-brand-700 sm:text-4xl">{unit.name}</h3>
-        <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-soft">
-          <span className="inline-flex items-center gap-1.5">
-            <MapPin className="size-4 text-brand-700" /> {LOCATION_LABEL}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <ThumbsUp className="size-4 text-brand-700" /> {RECOMMEND.percent}% recommend
-          </span>
-        </p>
-
-        <ul className="mt-6 grid gap-3 text-sm text-ink sm:grid-cols-2">
-          <Fact icon={<Waves />}>Adult and kids pool, exclusive</Fact>
-          <Fact icon={<Users />}>Up to {unit.max_guests} guests</Fact>
-          {SLEEPING.map((r) => (
-            <Fact key={r.room} icon={<BedDouble />}>
-              {r.room}: {r.beds.slice(0, 2).join(", ")}
-            </Fact>
-          ))}
-          <Fact icon={<Sparkles />}>Karaoke, billiards, bonfire, BBQ</Fact>
-          <Fact icon={<Wifi />}>PLDT WiFi, Netflix & YouTube</Fact>
-        </ul>
-
-        <div className="mt-auto pt-8">
-          {search ? (
-            <div className="rounded-2xl bg-sand-100 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-ink">
-                  {search.label} · {search.nights} night{search.nights === 1 ? "" : "s"}
-                </p>
-                <button
-                  type="button"
-                  onClick={search.onClear}
-                  className="cursor-pointer text-xs font-medium text-ink-muted underline underline-offset-4 hover:text-ink"
-                >
-                  Clear
-                </button>
-              </div>
-              {search.loading || search.free === null ? (
-                <p className="mt-1 text-sm text-ink-muted">Checking availability…</p>
-              ) : booked ? (
-                <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-red-700">
-                  <XCircle className="size-4" /> Already booked those dates. Try others.
-                </p>
-              ) : (
-                <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-emerald-800">
-                  <CheckCircle2 className="size-4" /> Available · <span className="font-semibold">{money(search.total ?? 0, true)}</span> total
-                </p>
-              )}
-              {search.tooMany && <p className="mt-1 text-xs text-ink-muted">We fit up to {unit.max_guests}. Message us for bigger groups.</p>}
-            </div>
-          ) : (
-            <p className="text-sm text-ink-muted">
-              From <span className="text-2xl font-semibold text-ink">{money(unit.base_rate, true)}</span> / night
-            </p>
-          )}
-          <Link
-            to={href}
-            className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-700 text-sm font-semibold text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90"
-          >
-            {search && !booked ? "Reserve these dates" : "See dates & book"} <ArrowRight className="size-4" />
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Fact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <li className="flex items-start gap-2.5">
-      <span className="mt-0.5 text-brand-700 [&_svg]:size-4">{icon}</span>
-      <span>{children}</span>
-    </li>
-  );
-}

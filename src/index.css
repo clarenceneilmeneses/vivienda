@@ -203,6 +203,31 @@
   }
 }
 
+/* The home gallery: rows of photos drifting by, alternate rows the other way.
+   Each row holds its photos twice, so moving it by half loops without a seam. */
+.drift {
+  animation: drift var(--drift, 80s) linear infinite;
+}
+.drift-reverse {
+  animation-direction: reverse;
+}
+.drift-group:hover .drift {
+  animation-play-state: paused;
+}
+@keyframes drift {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drift {
+    animation: none;
+  }
+  .drift-viewport {
+    overflow-x: auto;
+  }
+}
+
 /* Diagonal hatch for blocked dates on the calendar. */
 .hatch {
   background-image: repeating-linear-gradient(135deg, oklch(0.22 0 0 / 0.14) 0 2px, transparent 2px 7px);
