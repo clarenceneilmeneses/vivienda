@@ -58,6 +58,7 @@ export const PHOTOS = {
   gardenUmbrellas: { src: "/images/garden-umbrellas.jpg", alt: "Garden picnic tables under umbrellas" },
   playground: { src: "/images/playground.jpg", alt: "Kids' play area with slides and a swing" },
   events: { src: "/images/event-setup.jpg", alt: "The pavilion set up for a celebration" },
+  aframeGarden: { src: "/images/aframe-garden.jpg", alt: "The A-frame and villa from the garden path, behind the bamboo arch" },
   group: { src: "/images/group-aframe.jpg", alt: "A group of guests in front of the A-frame" },
 } as const;
 
@@ -83,6 +84,7 @@ export const GALLERY = [
   PHOTOS.lounge,
   PHOTOS.garden,
   PHOTOS.trellis,
+  PHOTOS.aframeGarden,
   PHOTOS.aerial,
   PHOTOS.front,
   PHOTOS.driveway,
@@ -114,55 +116,80 @@ export const SLEEPING: { room: string; beds: string[] }[] = [
 ];
 
 /**
- * Real recommendations from the Facebook page (9 of 9 recommend, as of
- * Sep 25, 2026). Copied as written; long ones end where Facebook cut them off.
+ * Real recommendations from the Facebook page (9 of 9 recommend), in full,
+ * with each reviewer's profile picture, read from the page's Reviews tab
+ * (2026-11-21). The database copies win once imported; these fill in until then.
  */
-export const REVIEWS: { author: string; month: string; body: string }[] = [
+export const REVIEWS: { author: string; month: string; avatar: string | null; body: string }[] = [
+  {
+    author: "Rosevel Arenas Cayabyab",
+    month: "September 2026",
+    avatar: "/images/reviewers/rosevel-arenas-cayabyab.jpg",
+    body: "Peaceful vibes with lots of activities to enjoy.",
+  },
   {
     author: "Kathy Bunyi Gaa",
     month: "August 2026",
-    body: "We celebrated my niece's birthday at Vivienda Resort, and we had such a wonderful experience! The place is peaceful, clean, and well-maintained, making it perfect for a relaxing family gathering. Since the resort is exclusive, we really enjoyed having the whole place to ourselves, perfect for family celebrations, reunions, and intimate gatherings.",
-  },
-  {
-    author: "Joy DM II",
-    month: "March 2026",
-    body: "Super enjoyed our stay at Vivienda! The cabin is spacious and cozy. Hindi kami nabored because may billiard table, board games, and karaoke. Very exclusive din yung place so we really had a relaxing time, and we loved that we could swim in the pool anytime. Plus, the resort owner is very accommodating and mabait. Highly recommended for a private getaway!",
-  },
-  {
-    author: "Tom Lester Aro Barrion",
-    month: "April 2026",
-    body: "Highly recommended! The place is very clean and beautiful. The owner and staff are all very kind and accommodating. It's absolutely perfect for a family outing. We had such a great time here with my whole family, definitely a place we'd love to visit again!",
-  },
-  {
-    author: "Arra Curaming Patrocenio",
-    month: "February 2026",
-    body: "Awesome experience at Vivienda! The place is absolutely beautiful - clean, well-maintained, refreshing and thoughtfully designed for comfort and privacy. Napakabait kausap and very accommodating pa si Owner at staff nito, kaya naging very smooth ang transaction. Our stay and birthday celebration turned out to be truly enjoyable and memorable.",
-  },
-  {
-    author: "Gared Christian Abrenica",
-    month: "March 2026",
-    body: "Highly recommended po, sobrang convenient po ng place along with the included amenities, such as the pool, the bedrooms with multiple decks, pantry with kitchenwares, and the billiards along with other mini games in the resort itself.",
+    avatar: "/images/reviewers/kathy-bunyi-gaa.jpg",
+    body: "Highly Recommended! 🤍\nWe celebrated my niece’s birthday at Vivienda Resort, and we had such a wonderful experience! The place is peaceful, clean, and well-maintained, making it perfect for a relaxing family gathering.\nSince the resort is exclusive, we really enjoyed having the whole place to ourselves, perfect for family celebrations, reunions, and intimate gatherings. 🥰\nSpecial thanks to Ma’am Ivory, who was so kind, accommodating, and easy to talk to from the time we booked until our stay. And of course, Kuya Ryan, the caretaker, was very attentive and accommodating as well. ❤️\nThank you, Vivienda Resort, for making our celebration extra special! We definitely had a great time and would highly recommend this place to families looking for a peaceful and private getaway. 🫶🏻\nDefinitely coming back! 🥰",
   },
   {
     author: "Chona Dimalanta",
     month: "June 2026",
+    avatar: "/images/reviewers/chona-dimalanta.jpg",
     body: "Highly recommended!! Super bait at accommodating ng owner at caretaker. Malinis, maganda at relaxing ng place.",
+  },
+  {
+    author: "Tom Lester Aro Barrion",
+    month: "April 2026",
+    avatar: "/images/reviewers/tom-lester-aro-barrion.jpg",
+    body: "Highly recommended! The place is very clean and beautiful. The owner and staff are all very kind and accommodating. It’s absolutely perfect for a family outing. We had such a great time here with my whole family definitely a place we’d love to visit again!",
   },
   {
     author: "King Marpee Agena",
     month: "March 2026",
-    body: "10/10 highly recommended, spacious at maganda ang mismong place. Convenient dahil malapit sa mga stores like Alfamart at Dali.",
+    avatar: "/images/reviewers/king-marpee-agena.jpg",
+    body: "10/10 highly recommended, spacious at maganda ang mismong place. Convenient dahil malapit sa mga stores like alfamart at dali 💯",
+  },
+  {
+    author: "Gared Christian Abrenica",
+    month: "March 2026",
+    avatar: "/images/reviewers/gared-christian-abrenica.jpg",
+    body: "Highly recommended po, sobrang convenient po ng place along with the included amenities, such as the pool, the bedrooms with multiple decks, pantry with kitchenwares, and the billiards along with other mini games in the resort itself.",
+  },
+  {
+    author: "Joy DM II",
+    month: "March 2026",
+    avatar: "/images/reviewers/joy-dm-ii.jpg",
+    body: "Super enjoyed our stay at Vivienda! The cabin is spacious and cozy. Hindi kami nabored because may billiard table, board games, and karaoke. Very exclusive din yung place so we really had a relaxing time, and we loved that we could swim in the pool anytime.\nPlus, the resort owner is very accommodating and mabait. Highly recommended for a private getaway! 😊🏊‍♂️🎱🎤",
+  },
+  {
+    author: "Arra Curaming Patrocenio",
+    month: "February 2026",
+    avatar: "/images/reviewers/arra-curaming-patrocenio.jpg",
+    body: "Awesome experience at Vivienda! 👍\nThe place is absolutely beautiful - clean, well-maintained, refreshing and thoughtfully designed for comfort and privacy. Napakabait kausap and very accommodating pa si Owner at staff nito, kaya naging very smooth ang transaction. Our stay and birthday celebration turned out to be truly enjoyable and memorable.\nThank you po.\nThis is highly recommended! 💯👏",
   },
   {
     author: "Cenon Dove Balbanida",
     month: "February 2026",
-    body: "Very satisfied couple here sa service nyo, sobrang ganda ng venue and very accommodating. Feel na feel at home kami kaya naging successful at maganda ang kinalabasan ng aming prenup. Recommendable! Thank you Vivienda!",
+    avatar: "/images/reviewers/cenon-dove-balbanida.jpg",
+    body: "Very Satisfied couple here sa service nyo, sobrang ganda ng Venue and very accommodating☺️ Feel na Feel at home kami kaya naging Successful at maganda ang kinalabasan ng aming Prenup☺️\nRecommendable😊\nThank You Vivienda❤️🥰",
   },
-  {
-    author: "Rosevel Arenas Cayabyab",
-    month: "September 2026",
-    body: "Peaceful vibes with lots of activities to enjoy. Spacious rooms.",
-  },
+];
+
+/**
+ * Guests' own moments, from photos posted on the Facebook page. Captions say
+ * what is in the picture, never who.
+ */
+export const STAYS: { src: string; alt: string; caption: string }[] = [
+  { src: "/images/stays/bonfire-group.jpg", alt: "A big group of guests around the bonfire under the string lights", caption: "Bonfire night" },
+  { src: "/images/stays/sign-group.jpg", alt: "A group of friends on the lounge under the Vivienda sign", caption: "The whole barkada" },
+  { src: "/images/stays/pool-cheers.jpg", alt: "Four guests waving in the pool by the waterfall", caption: "Morning swim" },
+  { src: "/images/stays/pavilion-lunch.jpg", alt: "A group selfie over lunch in the pavilion", caption: "Lunch in the pavilion" },
+  { src: "/images/stays/billiards.jpg", alt: "A guest lining up a shot at the billiards table", caption: "Billiards by the pool" },
+  { src: "/images/stays/bonfire-night.jpg", alt: "Friends toasting marshmallows at the bonfire", caption: "Marshmallows at midnight" },
+  { src: "/images/stays/pool-friends.jpg", alt: "Friends cheering in the big pool", caption: "Pool day" },
+  { src: "/images/stays/pool-waterfall.jpg", alt: "Two guests under the pool waterfall", caption: "Under the waterfall" },
 ];
 
 /** The Facebook rating line: every reviewer recommends. */

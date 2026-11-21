@@ -84,7 +84,21 @@ export function parseHar(raw: string, ownName = "vivienda"): HarResult {
     const b = blobOf(e);
     if (b) images.set(e.request.url, b);
   }
-  const pic = (url: string | null | undefined) => (url ? (images.get(url) ?? null) : null);
+  // The same picture is often loaded at another size, under another address
+  // with the same file name: match on that too.
+  const fileOf = (u: string) => {
+    try {
+      return new URL(u).pathname.split("/").pop() ?? "";
+    } catch {
+      return "";
+    }
+  };
+  const byFile = new Map<string, Blob>();
+  for (const [u, b] of images) {
+    const k = fileOf(u);
+    if (k && (!byFile.has(k) || b.size > byFile.get(k)!.size)) byFile.set(k, b);
+  }
+  const pic = (url: string | null | undefined) => (url ? (images.get(url) ?? byFile.get(fileOf(url)) ?? null) : null);
 
   const urls = entries.map((e) => e.request.url);
   if (urls.some((u) => /facebook\.com/.test(u))) return facebook(entries, pic, ownName);

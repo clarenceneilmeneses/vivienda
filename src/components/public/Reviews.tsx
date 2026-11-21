@@ -40,17 +40,24 @@ const monthOf = (iso: string | null | undefined) => (iso ? format(parseISO(iso.s
 
 /** The database's reviews, then any site.ts recommendation not imported yet. */
 export function toTestimonials(published: PublishedReview[]): Testimonial[] {
-  const fromDb: Testimonial[] = published.map((r) => ({
-    id: r.id,
-    author: r.guest_name,
-    month: monthOf(r.stayed_on ?? r.created_at),
-    rating: r.rating,
-    recommends: r.recommends ?? (r.rating == null ? true : null),
-    body: r.body,
-    avatarUrl: reviewAvatarUrl(r.avatar_path),
-    source: r.source ?? "website",
-    reply: r.host_reply,
-  }));
+  // The site's own copy of a Facebook review fills in its face and its full
+  // words until the database row has them (Admin → Reviews → Import).
+  const known = new Map(REVIEWS.map((r) => [r.author.trim().toLowerCase(), r]));
+  const fromDb: Testimonial[] = published.map((r) => {
+    const local = (r.source ?? "website") === "facebook" ? known.get(r.guest_name.trim().toLowerCase()) : undefined;
+    const fuller = local && local.body.length > r.body.length + 10 ? local.body : r.body;
+    return {
+      id: r.id,
+      author: r.guest_name,
+      month: monthOf(r.stayed_on ?? r.created_at),
+      rating: r.rating,
+      recommends: r.recommends ?? (r.rating == null ? true : null),
+      body: fuller,
+      avatarUrl: reviewAvatarUrl(r.avatar_path) ?? local?.avatar ?? null,
+      source: r.source ?? "website",
+      reply: r.host_reply,
+    };
+  });
   const names = new Set(fromDb.map((t) => t.author.trim().toLowerCase()));
   const fallback: Testimonial[] = REVIEWS.filter((r) => !names.has(r.author.trim().toLowerCase())).map((r) => ({
     id: `fb-${r.author}`,
@@ -59,7 +66,7 @@ export function toTestimonials(published: PublishedReview[]): Testimonial[] {
     rating: null,
     recommends: true,
     body: r.body,
-    avatarUrl: null,
+    avatarUrl: r.avatar,
     source: "facebook",
     reply: "",
   }));

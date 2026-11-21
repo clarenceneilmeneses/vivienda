@@ -22,7 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { money, prettyTime } from "../../lib/format";
-import { DEFAULT_AMENITIES, GALLERY, LOCATION_LABEL, PHOTOS, RECOMMEND, SITE, SLEEPING } from "../../lib/site";
+import { DEFAULT_AMENITIES, GALLERY, LOCATION_LABEL, PHOTOS, RECOMMEND, SITE, SLEEPING, STAYS } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import type { Unit } from "../../lib/types";
 
@@ -275,6 +275,38 @@ export function DriftGallery({ open, onOpen, onClose, heading }: { open: boolean
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * Recent stays: guests' own moments from the Facebook page, as a bento on a
+ * computer and a row to swipe on a phone. The caption says what is happening,
+ * never who.
+ */
+export function RecentStays({ heading }: { heading: ReactNode }) {
+  const shape = (i: number) =>
+    i === 0 ? "lg:col-span-2 lg:row-span-2" : i === 1 ? "lg:col-span-2" : "";
+  return (
+    <section id="stays" className="scroll-mt-24 px-4 pb-14 sm:px-8 sm:pb-20">
+      <div className="mx-auto max-w-7xl">
+        {heading}
+        <ul className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:auto-rows-[210px] lg:grid-cols-4 lg:gap-4">
+          {STAYS.map((p, i) => (
+            <li
+              key={p.src}
+              className={cn(
+                "group relative h-72 w-[78%] shrink-0 snap-start overflow-hidden rounded-[22px] bg-sand-100 sm:h-64 sm:w-auto lg:h-auto",
+                shape(i),
+              )}
+            >
+              <img src={p.src} alt={p.alt} loading="lazy" className="size-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
+              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/60 to-transparent" />
+              <p className="absolute bottom-3.5 left-4 text-sm font-medium text-white">{p.caption}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

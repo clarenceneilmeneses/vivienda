@@ -11,7 +11,7 @@ import { EmptyState } from "../../components/ui";
 import { SearchPill, type StaySearch } from "../../components/public/SearchPill";
 import { ReviewerAvatar, SourceLogo, TestimonialSection, toTestimonials } from "../../components/public/Reviews";
 import { usePublishedReviews } from "../../lib/guest";
-import { AmenityGrid, DriftGallery, StayFeature } from "../../components/public/HomeSections";
+import { AmenityGrid, DriftGallery, RecentStays, StayFeature } from "../../components/public/HomeSections";
 import type { Unit } from "../../lib/types";
 
 /**
@@ -202,6 +202,9 @@ export default function Home() {
         onClose={() => setPhotosOpen(false)}
         heading={<Heading eyebrow="Inside one gate" title="A look around" />}
       />
+
+      {/* ── Guests' own moments, on the paper ── */}
+      <RecentStays heading={<Heading eyebrow="Guests who made it theirs" title="Recent stays" />} />
 
       {/* ── The reviews, on espresso ── */}
       {testimonials.length > 0 && (
