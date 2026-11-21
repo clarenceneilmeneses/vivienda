@@ -97,7 +97,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   ref,
 ) {
   return (
-    <select ref={ref} className={cn(fieldBase, "h-10 pr-8", className)} {...rest}>
+    <select ref={ref} className={cn(fieldBase, "h-10 cursor-pointer pr-9", className)} {...rest}>
       {children}
     </select>
   );
@@ -638,7 +638,7 @@ export function FilterSelect<T extends string>({
       aria-label={label}
       title={label}
       className={cn(
-        "h-[42px] cursor-pointer rounded-full border bg-white pr-8 pl-4 text-sm shadow-level-1 focus:border-brand-700/50 focus:outline-none",
+        "h-[42px] cursor-pointer rounded-full border bg-white pr-10 pl-4 text-sm shadow-level-1 focus:border-brand-700/50 focus:outline-none",
         set ? "border-brand-700/40 font-medium text-brand-700" : "border-sand-200/80 text-ink",
         className,
       )}
@@ -729,7 +729,7 @@ export function Pagination({
             value={size}
             onChange={(e) => setSize(Number(e.target.value))}
             aria-label="Rows per page"
-            className="h-8 cursor-pointer rounded-lg border border-sand-300 bg-white px-2 text-sm text-ink focus:outline-none"
+            className="h-8 cursor-pointer rounded-lg border border-sand-300 bg-white bg-[position:right_0.4rem_center] pr-7 pl-2.5 text-sm text-ink focus:outline-none"
           >
             {PAGE_SIZES.map((n) => (
               <option key={n} value={n}>
