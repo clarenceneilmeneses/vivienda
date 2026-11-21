@@ -139,19 +139,19 @@ function PublicShell() {
 
       {!onMessages && (
       <footer id="contact" className="scroll-mt-4">
-        <div className="bg-espresso text-sand-50">
+        <div className="border-t border-sand-300/50 bg-linen text-ink">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-14 pb-14 sm:grid-cols-2 sm:px-8 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
           <div>
             <span className="inline-flex items-center gap-3">
-              <img src="/images/logo-192.png" alt="" className="size-14 shrink-0 rounded-full ring-2 ring-white/15" />
+              <img src="/images/logo-192.png" alt="" className="size-14 shrink-0 rounded-full shadow-level-2" />
               <span className="leading-none">
-                <span className="block font-display text-[1.5rem] tracking-[0.22em] text-sand-50">VIVIENDA</span>
-                <span className="mt-1 block pl-[0.3em] text-center text-[9px] font-medium tracking-[0.3em] text-sand-50/70 uppercase">
+                <span className="block font-display text-[1.5rem] tracking-[0.22em] text-brand-700">VIVIENDA</span>
+                <span className="mt-1 block pl-[0.3em] text-center text-[9px] font-medium tracking-[0.3em] text-brand-700 uppercase">
                   Our Tropical Haven
                 </span>
               </span>
             </span>
-            <p className="mt-5 max-w-xs text-[13px] leading-relaxed text-sand-50/65">
+            <p className="mt-5 max-w-xs text-[13px] leading-relaxed text-ink-soft">
               A private pool resort in Alitagtag, Batangas. The whole place, booked whole, never shared.
             </p>
           </div>
@@ -174,16 +174,16 @@ function PublicShell() {
 
           <FooterColumn title="CONTACT">
             <li>
-              <a href={telHref} className="inline-flex items-center gap-2.5 text-sand-50/75 transition-colors hover:text-white">
-                <Phone className="size-4 text-sand-50/50" /> {phone}
+              <a href={telHref} className="inline-flex items-center gap-2.5 text-ink-soft transition-colors hover:text-brand-700">
+                <Phone className="size-4 text-brand-700" /> {phone}
               </a>
             </li>
             <li>
               <a
                 href={`mailto:${email}`}
-                className="inline-flex items-center gap-2.5 break-all text-sand-50/75 transition-colors hover:text-white"
+                className="inline-flex items-center gap-2.5 break-all text-ink-soft transition-colors hover:text-brand-700"
               >
-                <Mail className="size-4 shrink-0 text-sand-50/50" /> {email}
+                <Mail className="size-4 shrink-0 text-brand-700" /> {email}
               </a>
             </li>
             <li>
@@ -191,9 +191,9 @@ function PublicShell() {
                 href={mapUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-start gap-2.5 text-sand-50/75 transition-colors hover:text-white"
+                className="inline-flex items-start gap-2.5 text-ink-soft transition-colors hover:text-brand-700"
               >
-                <MapPin className="mt-0.5 size-4 shrink-0 text-sand-50/50" /> {address}
+                <MapPin className="mt-0.5 size-4 shrink-0 text-brand-700" /> {address}
               </a>
             </li>
             <li>
@@ -202,7 +202,7 @@ function PublicShell() {
                 target="_blank"
                 rel="noreferrer noopener"
                 aria-label="Vivienda on Facebook"
-                className="inline-flex items-center gap-2.5 text-sand-50/75 transition-colors hover:text-white"
+                className="inline-flex items-center gap-2.5 text-ink-soft transition-colors hover:text-brand-700"
               >
                 <FacebookMark /> Facebook
               </a>
@@ -210,7 +210,7 @@ function PublicShell() {
           </FooterColumn>
         </div>
         {/* The copyright under a hairline; extra room on a phone for the floating tab bar. */}
-        <div className="border-t border-white/10 px-4 pt-5 pb-28 text-center text-[12px] tracking-[0.08em] text-sand-50/50 md:pb-5">
+        <div className="border-t border-sand-300/50 px-4 pt-5 pb-28 text-center text-[12px] tracking-[0.08em] text-ink-muted md:pb-5">
           &copy; {new Date().getFullYear()} {s?.resort_name ?? SITE.name}. All rights reserved.
         </div>
         </div>
@@ -223,7 +223,7 @@ function PublicShell() {
 function FooterColumn({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold tracking-[0.2em] text-sand-50/50 uppercase">{title}</p>
+      <p className="text-[11px] font-semibold tracking-[0.2em] text-brand-700 uppercase">{title}</p>
       <ul className="mt-4 space-y-3 text-sm font-medium">{children}</ul>
     </div>
   );
@@ -240,7 +240,7 @@ function FooterLink({
   external?: boolean;
   children: ReactNode;
 }) {
-  const cls = "text-sand-50/85 transition-colors hover:text-white";
+  const cls = "text-ink transition-colors hover:text-brand-700";
   return (
     <li>
       {to ? (
@@ -258,7 +258,7 @@ function FooterLink({
 
 function FacebookMark() {
   return (
-    <svg viewBox="0 0 24 24" className="size-4 text-sand-50/50" fill="currentColor" aria-hidden>
+    <svg viewBox="0 0 24 24" className="size-4 text-brand-700" fill="currentColor" aria-hidden>
       <path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z" />
     </svg>
   );
