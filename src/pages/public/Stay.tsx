@@ -34,12 +34,13 @@ import {
   useUnits,
 } from "../../lib/queries";
 import { compactMoney, isoDate, money, plural, prettyDate, prettyTime } from "../../lib/format";
-import { DEFAULT_AMENITIES, LOCATION_LABEL, RECOMMEND, REVIEWS, SITE, SLEEPING } from "../../lib/site";
+import { DEFAULT_AMENITIES, LOCATION_LABEL, RECOMMEND, SITE, SLEEPING } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import { RangeCalendar, type DateRange } from "../../components/RangeCalendar";
 import { Spinner } from "../../components/ui";
 import { PartyPicker, partyFromParams, partyLabel, partyQuery, type Party } from "../../components/public/PartyPicker";
-import { averageRating, GuestReviewCard, ReviewCard, unitPhotos } from "../../components/public/StayBits";
+import { averageRating, unitPhotos } from "../../components/public/StayBits";
+import { TestimonialCard, toTestimonials } from "../../components/public/Reviews";
 import { useGuestUi } from "../../components/public/GuestContext";
 import { usePublishedReviews } from "../../lib/guest";
 import { useAuth } from "../../lib/auth";
@@ -107,6 +108,9 @@ export default function Stay() {
     else if (!isAdmin) openChat(inquiry);
   }
   const rating = averageRating(guestReviews);
+  const rated = guestReviews.filter((r) => r.rating != null).length;
+  const testimonials = toTestimonials(guestReviews);
+  const recommends = testimonials.filter((t) => t.rating == null && t.recommends).length;
 
   function reserve() {
     if (!ready) {
@@ -202,8 +206,8 @@ export default function Stay() {
               <>
                 <Sep />
                 <a href="#reviews" className="inline-flex items-center gap-1 font-medium text-ink underline underline-offset-4">
-                  <Star className="size-3.5 fill-ink" /> {rating.toFixed(2)} · {guestReviews.length} review
-                  {guestReviews.length === 1 ? "" : "s"}
+                  <Star className="size-3.5 fill-ink" /> {rating.toFixed(2)} · {rated} review
+                  {rated === 1 ? "" : "s"}
                 </a>
               </>
             )}
@@ -291,22 +295,19 @@ export default function Stay() {
             </Block>
           </div>
 
-          {REVIEWS.length + guestReviews.length > 0 && (
+          {testimonials.length > 0 && (
             <Block
               title="Reviews"
               aside={
                 <span className="text-sm font-medium text-ink-soft">
-                  {rating != null ? `★ ${rating.toFixed(2)} · ${guestReviews.length} on site · ` : ""}
-                  {REVIEWS.length} recommend on Facebook
+                  {rating != null ? `★ ${rating.toFixed(2)} · ${rated} rated${recommends ? " · " : ""}` : ""}
+                  {recommends ? `${recommends} recommend on Facebook` : ""}
                 </span>
               }
             >
               <div className="grid gap-4 sm:grid-cols-2">
-                {guestReviews.slice(0, 4).map((r) => (
-                  <GuestReviewCard key={r.id} review={r} />
-                ))}
-                {REVIEWS.slice(0, Math.max(2, 6 - guestReviews.length)).map((r) => (
-                  <ReviewCard key={r.author} {...r} />
+                {testimonials.slice(0, 6).map((t) => (
+                  <TestimonialCard key={t.id} t={t} />
                 ))}
               </div>
             </Block>
@@ -327,7 +328,7 @@ export default function Stay() {
               <div className="min-w-0 flex-1 text-sm text-ink-soft">
                 <ul className="space-y-1.5">
                   <li>
-                    <span className="font-semibold text-ink">{REVIEWS.length + guestReviews.length}</span> reviews ·{" "}
+                    <span className="font-semibold text-ink">{testimonials.length}</span> reviews ·{" "}
                     <span className="font-semibold text-ink">{RECOMMEND.percent}%</span> recommend
                   </li>
                   <li>Usually replies within the day</li>

@@ -50,13 +50,17 @@ export interface Trip {
 export interface PublishedReview {
   id: string;
   guest_name: string;
-  rating: number;
+  /** Null for a Facebook recommendation, which has no stars. */
+  rating: number | null;
   body: string;
   host_reply: string;
   stayed_on: string | null;
   created_at: string;
   /** Where it was written. Older databases leave this out: the website. */
   source?: ReviewSource;
+  /** The reviewer's picture, in the public 'review-avatars' bucket. */
+  avatar_path?: string | null;
+  recommends?: boolean | null;
 }
 
 /** Signed in, and not the owner. The admin account never becomes a guest. */

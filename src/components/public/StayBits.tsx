@@ -65,7 +65,7 @@ export function GuestReviewCard({ review }: { review: PublishedReview }) {
   return (
     <figure className="flex h-full flex-col rounded-xl border border-sand-200/60 bg-white p-6 shadow-level-1">
       <div className="flex items-center justify-between gap-3">
-        <Stars rating={review.rating} />
+        {review.rating != null ? <Stars rating={review.rating} /> : <span className="inline-flex items-center gap-1 text-xs font-medium text-ink-soft"><ThumbsUp className="size-3.5 text-[#0866FF]" /> Recommends</span>}
         <span
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
@@ -100,6 +100,7 @@ export function GuestReviewCard({ review }: { review: PublishedReview }) {
 }
 
 export function averageRating(reviews: PublishedReview[]) {
-  if (!reviews.length) return null;
-  return Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) * 100) / 100;
+  const rated = reviews.filter((r) => r.rating != null);
+  if (!rated.length) return null;
+  return Math.round((rated.reduce((s, r) => s + (r.rating ?? 0), 0) / rated.length) * 100) / 100;
 }

@@ -64,21 +64,3 @@ function Fern({ className = "" }: { className?: string }) {
   );
 }
 
-/**
- * Vivienda's own mark: the glass A-frame's gable, with its centre mullion.
- * Sits over section headings, where Malaya has nothing; it is what makes the
- * page Vivienda's and not a copy.
- */
-export function AFrameMark({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 28" fill="none" aria-hidden className={className}>
-      <path d="M16 2 L30 26 H2 Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M16 10 V26 M10.5 26 V18.5 M21.5 26 V18.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.7" />
-    </svg>
-  );
-}
-
-/** The gable, as a clip-path: steep roof lines meeting at the ridge. */
-export const GABLE = "polygon(50% 0%, 100% 44%, 100% 100%, 0% 100%, 0% 44%)";
-/** A shallower gable for smaller cards. */
-export const GABLE_LOW = "polygon(50% 0%, 100% 20%, 100% 100%, 0% 100%, 0% 20%)";

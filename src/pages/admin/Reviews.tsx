@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Eye, EyeOff, MessageSquareReply, Plus, Star, Trash2 } from "lucide-react";
+import { Camera, Eye, EyeOff, MessageSquareReply, Pencil, Plus, Star, ThumbsUp, Trash2 } from "lucide-react";
 import { errorMessage, supabase } from "../../lib/supabase";
 import { isoDate, prettyDate, stayRange } from "../../lib/format";
 import { REVIEWS } from "../../lib/site";
@@ -32,6 +32,7 @@ import {
   usePaged,
 } from "../../components/ui";
 import { Stars } from "../../components/public/StayBits";
+import { REVIEW_AVATAR_BUCKET, ReviewerAvatar, reviewAvatarUrl } from "../../components/public/Reviews";
 
 type Row = Review & {
   guest: { full_name: string; email: string | null } | null;
@@ -47,6 +48,7 @@ export default function Reviews() {
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [editingReview, setEditingReview] = useState<Row | null>(null);
   const [q, setQ] = useState("");
   const [stars, setStars] = useState("any");
   const [source, setSource] = useState<"any" | ReviewSource>("any");
@@ -88,7 +90,8 @@ export default function Reviews() {
   const filtering = q !== "" || stars !== "any" || source !== "any" || replied !== "any";
   const paged = usePaged(shown, [view, q, stars, source, replied], 10);
   const published = groups.published;
-  const avg = published.length ? published.reduce((s, r) => s + r.rating, 0) / published.length : null;
+  const ratedPublished = published.filter((r) => r.rating != null);
+  const avg = ratedPublished.length ? ratedPublished.reduce((s, r) => s + (r.rating ?? 0), 0) / ratedPublished.length : null;
 
   async function setStatus(r: Row, status: View) {
     const { error } = await supabase.from("reviews").update({ status }).eq("id", r.id);
@@ -212,7 +215,8 @@ export default function Reviews() {
           {paged.items.map((r) => (
             <Card key={r.id} className="flex flex-col p-5">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <ReviewerAvatar name={r.reviewer_name || r.guest?.full_name || "Guest"} url={reviewAvatarUrl(r.avatar_path)} className="size-10" />
+                <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 font-medium text-ink">
                     {r.reviewer_name || r.guest?.full_name || "Guest"}
                     <Badge className={(r.source ?? "website") === "website" ? "bg-emerald-50 text-emerald-800" : ""}>
@@ -227,7 +231,13 @@ export default function Reviews() {
                         : `Added ${prettyDate(r.created_at.slice(0, 10), "MMM d")}`}
                   </p>
                 </div>
-                <Stars rating={r.rating} />
+                {r.rating != null ? (
+                  <Stars rating={r.rating} />
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-ink-soft">
+                    <ThumbsUp className="size-3.5 text-[#0866FF]" /> Recommends
+                  </span>
+                )}
               </div>
               <p className="mt-3 flex-1 text-sm leading-relaxed whitespace-pre-line text-ink-soft">{r.body}</p>
               {r.host_reply && (
@@ -258,6 +268,11 @@ export default function Reviews() {
                 >
                   <MessageSquareReply className="size-3.5" /> {r.host_reply ? "Edit reply" : "Reply publicly"}
                 </Button>
+                {!r.booking_id && (
+                  <Button size="sm" variant="ghost" onClick={() => setEditingReview(r)}>
+                    <Pencil className="size-3.5" /> Edit
+                  </Button>
+                )}
                 {!r.booking_id && (
                   <Button size="sm" variant="danger" className="ml-auto" onClick={() => remove(r)}>
                     <Trash2 className="size-3.5" /> Delete
@@ -291,61 +306,118 @@ export default function Reviews() {
       >
         <Textarea rows={5} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Thank you for staying with us…" />
       </Modal>
-      {adding && <AddReviewModal onClose={() => setAdding(false)} />}
+      {adding && <ReviewModal onClose={() => setAdding(false)} />}
+      {editingReview && <ReviewModal review={editingReview} onClose={() => setEditingReview(null)} />}
     </>
   );
 }
 
-/** A review from Airbnb, Google or Facebook, typed in so it shows beside the website's own. */
-function AddReviewModal({ onClose }: { onClose: () => void }) {
+/**
+ * A review from Airbnb, Google or Facebook, copied in so it shows beside the
+ * website's own, with the reviewer's profile picture as on the platform. A
+ * Facebook recommendation has no stars: it says "Recommends" instead.
+ */
+function ReviewModal({ review, onClose }: { review?: Row; onClose: () => void }) {
   const qc = useQueryClient();
-  const [source, setSource] = useState<ReviewSource>("airbnb");
-  const [name, setName] = useState("");
-  const [rating, setRating] = useState(5);
-  const [body, setBody] = useState("");
-  const [date, setDate] = useState(isoDate(new Date()));
+  const editing = Boolean(review);
+  const [source, setSource] = useState<ReviewSource>(review?.source ?? "airbnb");
+  const [name, setName] = useState(review?.reviewer_name ?? "");
+  const [kind, setKind] = useState<"stars" | "recommends">(review && review.rating == null ? "recommends" : "stars");
+  const [rating, setRating] = useState(review?.rating ?? 5);
+  const [body, setBody] = useState(review?.body ?? "");
+  const [date, setDate] = useState(review ? (review.reviewed_on ?? "") : isoDate(new Date()));
   const [publish, setPublish] = useState(true);
+  const original = review?.avatar_path ?? null;
+  const [avatar, setAvatar] = useState<string | null>(original);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function upload(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return setError("That picture is over 5 MB.");
+    setUploading(true);
+    setError(null);
+    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const path = `${source}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from(REVIEW_AVATAR_BUCKET).upload(path, file, { contentType: file.type });
+    setUploading(false);
+    if (error)
+      return setError(/bucket not found/i.test(error.message) ? "Profile pictures need the latest supabase/schema.sql. Run it in Supabase first." : error.message);
+    if (avatar && avatar !== original) supabase.storage.from(REVIEW_AVATAR_BUCKET).remove([avatar]);
+    setAvatar(path);
+  }
+
+  function cancel() {
+    if (avatar && avatar !== original) supabase.storage.from(REVIEW_AVATAR_BUCKET).remove([avatar]);
+    onClose();
+  }
+
   async function save() {
     setError(null);
-    if (!name.trim()) return setError("Who wrote it? A first name and initial is enough.");
+    if (!name.trim()) return setError("Who wrote it? Their name as shown on the platform.");
     if (body.trim().length < 5) return setError("Paste the review text.");
     setSaving(true);
-    const { error } = await supabase.from("reviews").insert({
+    const row = {
       source,
       reviewer_name: name.trim(),
-      rating,
+      rating: kind === "stars" ? rating : null,
+      ...(kind === "recommends" ? { recommends: true } : review?.recommends != null ? { recommends: null } : {}),
       body: body.trim(),
       reviewed_on: date || null,
-      status: publish ? "published" : "pending",
-    });
+      ...(avatar !== original ? { avatar_path: avatar } : {}),
+    };
+    const { error } = review
+      ? await supabase.from("reviews").update(row).eq("id", review.id)
+      : await supabase.from("reviews").insert({ ...row, status: publish ? "published" : "pending" });
     setSaving(false);
-    if (error) return setError(errorMessage(error));
+    if (error)
+      return setError(
+        /avatar_path|recommends|null value in column "rating"/.test(error.message)
+          ? "Profile pictures and Facebook recommendations need the latest supabase/schema.sql. Run it in Supabase, then save again."
+          : errorMessage(error),
+      );
+    if (original && original !== avatar) supabase.storage.from(REVIEW_AVATAR_BUCKET).remove([original]);
     await qc.invalidateQueries({ queryKey: ["reviews"] });
-    toast.success(publish ? "Review added and published" : "Review added");
+    toast.success(editing ? "Review saved" : publish ? "Review added and published" : "Review added");
     onClose();
   }
 
   return (
     <Modal
       open
-      onClose={onClose}
-      title="Add a review"
-      description="Bring over a review from Airbnb, Google or Facebook. It shows on the site with where it came from."
+      onClose={cancel}
+      title={editing ? "Edit review" : "Add a review"}
+      description="Copied from Airbnb, Google or Facebook. It shows on the site with the platform's logo and the reviewer's picture."
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={cancel}>
             Cancel
           </Button>
-          <Button loading={saving} onClick={save}>
-            Add review
+          <Button loading={saving} disabled={uploading} onClick={save}>
+            {editing ? "Save" : "Add review"}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
+        <div className="flex items-center gap-4">
+          <ReviewerAvatar name={name || "?"} url={reviewAvatarUrl(avatar)} className="size-16 text-xl" />
+          <div className="space-y-1">
+            <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-sand-300 bg-white px-3 text-sm font-medium text-ink hover:bg-sand-100">
+              <Camera className="size-4" /> {uploading ? "Uploading…" : avatar ? "Change picture" : "Add profile picture"}
+              <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={uploading} onChange={(e) => upload(e.target.files?.[0])} />
+            </label>
+            <p className="text-xs text-ink-muted">
+              Save it from their profile on the platform. A square photo works best.
+              {avatar && (
+                <button type="button" onClick={() => setAvatar(null)} className="ml-2 cursor-pointer text-red-700 hover:underline">
+                  Remove
+                </button>
+              )}
+            </p>
+          </div>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="From">
             {(id) => (
@@ -366,7 +438,26 @@ function AddReviewModal({ onClose }: { onClose: () => void }) {
           {(id) => <Input id={id} value={name} onChange={(e) => setName(e.target.value)} />}
         </Field>
         <div>
-          <p className="mb-1.5 text-sm font-medium text-ink">Rating</p>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-ink">Rating</p>
+            <div className="flex rounded-lg bg-sand-100 p-0.5 text-xs">
+              {(["stars", "recommends"] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setKind(k)}
+                  className={cn("cursor-pointer rounded-md px-2.5 py-1", kind === k ? "bg-white font-medium shadow-sm" : "text-ink-muted")}
+                >
+                  {k === "stars" ? "Stars" : "Recommends (Facebook)"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {kind === "recommends" ? (
+            <p className="inline-flex items-center gap-1.5 rounded-lg bg-[#0866FF]/8 px-3 py-2 text-sm text-ink-soft">
+              <ThumbsUp className="size-4 text-[#0866FF]" /> Shown as “Recommends Vivienda”, the way Facebook shows it.
+            </p>
+          ) : (
           <div className="flex gap-1" role="radiogroup" aria-label="Rating">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
@@ -382,12 +473,15 @@ function AddReviewModal({ onClose }: { onClose: () => void }) {
               </button>
             ))}
           </div>
+          )}
         </div>
         <Field label="Review">{(id) => <Textarea id={id} rows={5} value={body} onChange={(e) => setBody(e.target.value)} />}</Field>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} className="size-4 accent-brand-700" />
-          Publish on the website now
-        </label>
+        {!editing && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} className="size-4 accent-brand-700" />
+            Publish on the website now
+          </label>
+        )}
         <ErrorBox>{error}</ErrorBox>
       </div>
     </Modal>

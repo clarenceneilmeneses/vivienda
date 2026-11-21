@@ -585,6 +585,44 @@ drop trigger if exists reviews_touch on public.reviews;
 create trigger reviews_touch before update on public.reviews
   for each row execute function public.touch_updated_at();
 
+-- Imported reviews as Malaya has them (2026-11-21): the reviewer's profile
+-- picture, and Facebook's "recommends" with no stars (rating left empty then).
+alter table public.reviews add column if not exists avatar_path text;
+alter table public.reviews add column if not exists recommends boolean;
+alter table public.reviews alter column rating drop not null;
+
+-- Reviewers' pictures: public, so the home page can show them; only the owner uploads.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('review-avatars', 'review-avatars', true, 5242880, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set public = true;
+drop policy if exists review_avatars_read on storage.objects;
+create policy review_avatars_read on storage.objects for select using (bucket_id = 'review-avatars');
+drop policy if exists review_avatars_write on storage.objects;
+create policy review_avatars_write on storage.objects for insert to authenticated
+  with check (bucket_id = 'review-avatars' and public.is_admin());
+drop policy if exists review_avatars_delete on storage.objects;
+create policy review_avatars_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'review-avatars' and public.is_admin());
+
+-- The Facebook recommendations the site launched with, brought in as reviews so
+-- the owner can add each one's picture under Reviews. Only once per name.
+insert into public.reviews (source, reviewer_name, recommends, rating, body, reviewed_on, status)
+select 'facebook', v.name, true, null, v.body, v.on_date::date, 'published'
+from (values
+  ('Kathy Bunyi Gaa', '2026-08-01', 'We celebrated my niece''s birthday at Vivienda Resort, and we had such a wonderful experience! The place is peaceful, clean, and well-maintained, making it perfect for a relaxing family gathering. Since the resort is exclusive, we really enjoyed having the whole place to ourselves, perfect for family celebrations, reunions, and intimate gatherings.'),
+  ('Joy DM II', '2026-03-01', 'Super enjoyed our stay at Vivienda! The cabin is spacious and cozy. Hindi kami nabored because may billiard table, board games, and karaoke. Very exclusive din yung place so we really had a relaxing time, and we loved that we could swim in the pool anytime. Plus, the resort owner is very accommodating and mabait. Highly recommended for a private getaway!'),
+  ('Tom Lester Aro Barrion', '2026-04-01', 'Highly recommended! The place is very clean and beautiful. The owner and staff are all very kind and accommodating. It''s absolutely perfect for a family outing. We had such a great time here with my whole family, definitely a place we''d love to visit again!'),
+  ('Arra Curaming Patrocenio', '2026-02-01', 'Awesome experience at Vivienda! The place is absolutely beautiful - clean, well-maintained, refreshing and thoughtfully designed for comfort and privacy. Napakabait kausap and very accommodating pa si Owner at staff nito, kaya naging very smooth ang transaction. Our stay and birthday celebration turned out to be truly enjoyable and memorable.'),
+  ('Gared Christian Abrenica', '2026-03-01', 'Highly recommended po, sobrang convenient po ng place along with the included amenities, such as the pool, the bedrooms with multiple decks, pantry with kitchenwares, and the billiards along with other mini games in the resort itself.'),
+  ('Chona Dimalanta', '2026-06-01', 'Highly recommended!! Super bait at accommodating ng owner at caretaker. Malinis, maganda at relaxing ng place.'),
+  ('King Marpee Agena', '2026-03-01', '10/10 highly recommended, spacious at maganda ang mismong place. Convenient dahil malapit sa mga stores like Alfamart at Dali.'),
+  ('Cenon Dove Balbanida', '2026-02-01', 'Very satisfied couple here sa service nyo, sobrang ganda ng venue and very accommodating. Feel na feel at home kami kaya naging successful at maganda ang kinalabasan ng aming prenup. Recommendable! Thank you Vivienda!'),
+  ('Rosevel Arenas Cayabyab', '2026-09-01', 'Peaceful vibes with lots of activities to enjoy. Spacious rooms.')
+) as v(name, on_date, body)
+where not exists (
+  select 1 from public.reviews r where r.source = 'facebook' and lower(r.reviewer_name) = lower(v.name)
+);
+
 -- A few saved answers to start with. Edit them in the admin under Inbox → Quick replies.
 insert into public.quick_replies (title, body, sort_order)
 select * from (values
@@ -857,13 +895,14 @@ end $$;
 drop function if exists public.published_reviews();
 create or replace function public.published_reviews()
 returns table (id uuid, guest_name text, rating int, body text, host_reply text, stayed_on date,
-               created_at timestamptz, source text)
+               created_at timestamptz, source text, avatar_path text, recommends boolean)
 language sql stable security definer set search_path = public as $$
   select r.id,
          coalesce(nullif(r.reviewer_name, ''),
            split_part(g.full_name, ' ', 1) || coalesce(' ' || left(nullif(split_part(g.full_name, ' ', 2), ''), 1) || '.', ''),
            'Guest'),
-         r.rating, r.body, r.host_reply, coalesce(b.check_in, r.reviewed_on), r.created_at, r.source
+         r.rating, r.body, r.host_reply, coalesce(b.check_in, r.reviewed_on), r.created_at, r.source,
+         r.avatar_path, r.recommends
   from public.reviews r
   left join public.guests g on g.id = r.guest_id
   left join public.bookings b on b.id = r.booking_id

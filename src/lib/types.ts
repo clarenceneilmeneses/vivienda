@@ -271,7 +271,12 @@ export interface Review {
   source: ReviewSource;
   reviewer_name: string;
   reviewed_on: string | null;
-  rating: number;
+  /** Null for a Facebook recommendation, which has no stars. */
+  rating: number | null;
+  /** Facebook's verdict, for a review copied from there. */
+  recommends?: boolean | null;
+  /** The reviewer's picture, in the public 'review-avatars' bucket. */
+  avatar_path?: string | null;
   body: string;
   status: "pending" | "published" | "hidden";
   host_reply: string;

@@ -43,6 +43,8 @@
   --color-espresso: oklch(0.2268 0.0253 55.5);
   --color-espresso-soft: oklch(0.2988 0.033 55.5);
   --color-cream: oklch(0.9229 0.0216 98.1);
+  /* The guest site's warm ground between curves (2026-11-21). */
+  --color-linen: #f5eee4;
 
   --shadow-level-1: 0 1px 2px oklch(0.2988 0.033 55.5 / 4%);
   --shadow-level-2: 0 1px 2px oklch(0.2988 0.033 55.5 / 5%), 0 4px 12px oklch(0.2988 0.033 55.5 / 6%);
