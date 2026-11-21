@@ -26,7 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { money, prettyTime } from "../../lib/format";
-import { GALLERY, LOCATION_LABEL, PHOTOS, RECOMMEND, SLEEPING, STAYS } from "../../lib/site";
+import { FEATURE, GALLERY, LOCATION_LABEL, PHOTOS, RECOMMEND, SLEEPING, STAYS } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import type { Unit } from "../../lib/types";
 
@@ -368,5 +368,75 @@ export function BookBar({ unit, href }: { unit: Unit; href: string }) {
         Book now <ArrowRight className="size-4" />
       </Link>
     </div>
+  );
+}
+
+/**
+ * A featured guest, set like a magazine feature: one tall photograph with two
+ * smaller ones over its corner, her name and title, one line from the page's
+ * thank-you post, and the rest of her shots in a row below. Photographs sell
+ * a place to people who don't read; a person in them sells it twice.
+ */
+export function FeatureStory({ href }: { href: string }) {
+  if (!FEATURE) return null;
+  const [lead, second, third, ...rest] = FEATURE.photos;
+  return (
+    <section id="featured" className="scroll-mt-24 px-4 pt-6 pb-14 sm:px-8 sm:pt-10 sm:pb-20">
+      <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2 lg:gap-16">
+        <div className="relative mx-auto w-full max-w-md lg:max-w-none">
+          <div className="aspect-[4/5] overflow-hidden rounded-[28px] shadow-level-4">
+            <img src={lead.src} alt={lead.alt} loading="lazy" className="size-full object-cover" />
+          </div>
+          {second && (
+            <div className="absolute -bottom-6 -left-4 w-[38%] overflow-hidden rounded-2xl bg-white p-1.5 shadow-level-4 sm:-left-8">
+              <img src={second.src} alt={second.alt} loading="lazy" className="aspect-[4/5] w-full rounded-xl object-cover" />
+            </div>
+          )}
+          {third && (
+            <div className="absolute -top-6 -right-3 w-[34%] overflow-hidden rounded-2xl bg-white p-1.5 shadow-level-4 sm:-right-8">
+              <img src={third.src} alt={third.alt} loading="lazy" className="aspect-[4/5] w-full rounded-xl object-cover" />
+            </div>
+          )}
+        </div>
+
+        <div className="pt-4 lg:pt-0">
+          <p className="brand-eyebrow text-[11px] text-ink-muted">Featured guest</p>
+          <h2 className="site-display text-brand-heading mt-3 text-4xl leading-[1.02] sm:text-6xl">
+            {FEATURE.name},
+            <br />
+            {FEATURE.title}
+          </h2>
+          <p className="mt-6 max-w-md border-l-2 border-brand-700/40 pl-4 text-lg leading-relaxed text-ink-soft italic">“{FEATURE.line}”</p>
+          <p className="mt-2 pl-[18px] text-sm text-ink-muted">Vivienda, on Facebook</p>
+
+          {rest.length > 0 && (
+            <ul className="mt-8 flex gap-3">
+              {rest.map((p) => (
+                <li key={p.src} className="aspect-square w-24 overflow-hidden rounded-2xl shadow-level-2 sm:w-28">
+                  <img src={p.src} alt={p.alt} loading="lazy" className="size-full object-cover" />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              to={href}
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-brand-700 px-7 text-sm font-semibold text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90"
+            >
+              Book your own shoot day <ArrowRight className="size-4" />
+            </Link>
+            <a
+              href={FEATURE.postUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex h-12 items-center rounded-full border border-sand-300 px-6 text-sm font-medium text-ink transition-colors hover:bg-sand-100"
+            >
+              See all her photos
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }

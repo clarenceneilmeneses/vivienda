@@ -8,7 +8,7 @@ import { cn } from "../../lib/utils";
 import { EmptyState } from "../../components/ui";
 import { ReviewerAvatar, SourceLogo, TestimonialSection, toTestimonials } from "../../components/public/Reviews";
 import { usePublishedReviews } from "../../lib/guest";
-import { AmenityGrid, BookBar, DriftGallery, RecentStays, StayFeature } from "../../components/public/HomeSections";
+import { AmenityGrid, BookBar, DriftGallery, FeatureStory, RecentStays, StayFeature } from "../../components/public/HomeSections";
 import type { Unit } from "../../lib/types";
 
 /**
@@ -105,6 +105,9 @@ export default function Home() {
 
       {/* ── The photos, on white ── */}
       <Curve color={LINEN} edge="bottom" flip />
+
+      {/* A featured guest, near the top: people sell a place. */}
+      {resort && <FeatureStory href={stayHref(resort)} />}
       <DriftGallery
         open={photosOpen}
         onOpen={() => setPhotosOpen(true)}

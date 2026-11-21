@@ -58,6 +58,10 @@ export const PHOTOS = {
   gardenUmbrellas: { src: "/images/garden-umbrellas.jpg", alt: "Garden picnic tables under umbrellas" },
   playground: { src: "/images/playground.jpg", alt: "Kids' play area with slides and a swing" },
   events: { src: "/images/event-setup.jpg", alt: "The pavilion set up for a celebration" },
+  aframePoolside: { src: "/images/aframe-poolside.jpg", alt: "The glass A-frame over the pool and the loungers" },
+  bambooArchView: { src: "/images/bamboo-arch-view.jpg", alt: "The garden seen through the bamboo arch" },
+  loftLounge: { src: "/images/loft-lounge.jpg", alt: "The lounge under the A-frame's slanted wall" },
+  aframeStairsView: { src: "/images/aframe-stairs-view.jpg", alt: "The A-frame's open stairs beside the glass" },
   aframeGarden: { src: "/images/aframe-garden.jpg", alt: "The A-frame and villa from the garden path, behind the bamboo arch" },
   group: { src: "/images/group-aframe.jpg", alt: "A group of guests in front of the A-frame" },
 } as const;
@@ -85,6 +89,10 @@ export const GALLERY = [
   PHOTOS.garden,
   PHOTOS.trellis,
   PHOTOS.aframeGarden,
+  PHOTOS.aframePoolside,
+  PHOTOS.bambooArchView,
+  PHOTOS.loftLounge,
+  PHOTOS.aframeStairsView,
   PHOTOS.aerial,
   PHOTOS.front,
   PHOTOS.driveway,
@@ -176,6 +184,30 @@ export const REVIEWS: { author: string; month: string; avatar: string | null; bo
     body: "Very Satisfied couple here sa service nyo, sobrang ganda ng Venue and very accommodating☺️ Feel na Feel at home kami kaya naging Successful at maganda ang kinalabasan ng aming Prenup☺️\nRecommendable😊\nThank You Vivienda❤️🥰",
   },
 ];
+
+/**
+ * A featured guest, from the page's own post thanking her (2026-11-21). Shown
+ * on the home page as "Featured guest". To change or remove, edit or set null.
+ */
+export const FEATURE: {
+  name: string;
+  title: string;
+  line: string;
+  postUrl: string;
+  photos: { src: string; alt: string }[];
+} | null = {
+  name: "Yuniz",
+  title: "Miss Calaca",
+  line: "Thank you for choosing Vivienda and spending your precious time with us.",
+  postUrl: "https://www.facebook.com/share/p/1KsqQJwM5X/",
+  photos: [
+    { src: "/images/feature/lounger.jpg", alt: "Yuniz on a lounger by the pool under the A-frame" },
+    { src: "/images/feature/aframe-pose.jpg", alt: "Yuniz against the A-frame's wooden wall" },
+    { src: "/images/feature/pool-edge.jpg", alt: "Yuniz at the edge of the pool" },
+    { src: "/images/feature/mirror-pose.jpg", alt: "Yuniz posing by the A-frame" },
+    { src: "/images/feature/garden.jpg", alt: "Yuniz on the garden lawn" },
+  ],
+};
 
 /**
  * Guests' own moments, from photos posted on the Facebook page. Captions say
