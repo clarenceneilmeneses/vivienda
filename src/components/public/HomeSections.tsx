@@ -2,17 +2,17 @@ import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
+  BedDouble,
   CheckCircle2,
-  Clapperboard,
+  Clock,
   CookingPot,
   Dices,
-  Drumstick,
-  Flame,
   Grid3X3,
   MapPin,
-  Mic,
   Refrigerator,
+  ThumbsUp,
   Tv,
+  Users,
   Utensils,
   UtensilsCrossed,
   Waves,
@@ -22,7 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { money, prettyTime } from "../../lib/format";
-import { DEFAULT_AMENITIES, GALLERY, LOCATION_LABEL, PHOTOS, RECOMMEND, SITE, SLEEPING, STAYS } from "../../lib/site";
+import { GALLERY, LOCATION_LABEL, PHOTOS, RECOMMEND, SLEEPING, STAYS } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import type { Unit } from "../../lib/types";
 
@@ -37,48 +37,53 @@ export interface SearchState {
 }
 
 /**
- * The resort, set like a magazine spread rather than a listing card: the place
- * in three photographs on the left; on the right its name, three numbers, the
- * two rooms and the price, with the answer to a dated search in the same spot.
+ * The resort, said in pictures (2026-11-21: "filipinos are visuals and they
+ * barely read"): the aerial view with the numbers on it, the two rooms as
+ * photographs, the price and one button. No paragraph.
  */
-export function StayFeature({ unit, href, search, about }: { unit: Unit; href: string; search: SearchState | null; about?: string }) {
+export function StayFeature({ unit, href, search }: { unit: Unit; href: string; search: SearchState | null; about?: string }) {
   const booked = search?.free === false;
   return (
-    <div className="grid items-center gap-8 lg:grid-cols-12 lg:gap-14">
-      <Link to={href} className="group grid h-[340px] grid-cols-6 grid-rows-6 gap-3 sm:h-[520px] lg:col-span-7">
-        <Photo src={PHOTOS.aerial.src} alt={PHOTOS.aerial.alt} className="col-span-4 row-span-6 rounded-[28px]" />
-        <Photo src={PHOTOS.poolWaterfall.src} alt={PHOTOS.poolWaterfall.alt} className="col-span-2 row-span-3 rounded-[22px]" />
-        <Photo src={PHOTOS.aframeStairs.src} alt={PHOTOS.aframeStairs.alt} className="col-span-2 row-span-3 rounded-[22px]" />
+    <div className="grid gap-6 lg:grid-cols-12 lg:gap-10">
+      <Link to={href} className="group relative block h-[340px] overflow-hidden rounded-[28px] shadow-level-3 sm:h-[460px] lg:col-span-7 lg:h-auto lg:min-h-[520px]">
+        <img
+          src={PHOTOS.aerial.src}
+          alt={PHOTOS.aerial.alt}
+          loading="lazy"
+          className="absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+        />
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/55 to-transparent" />
+        <ul className="absolute right-4 bottom-4 left-4 flex flex-wrap gap-2">
+          <Pill icon={Users}>Up to {unit.max_guests} guests</Pill>
+          <Pill icon={Waves}>Adult & kids pools</Pill>
+          <Pill icon={BedDouble}>{SLEEPING.length} rooms</Pill>
+          <Pill icon={ThumbsUp}>{RECOMMEND.percent}% recommend</Pill>
+        </ul>
       </Link>
 
-      <div className="lg:col-span-5">
-        <h3 className="site-display text-brand-heading text-3xl leading-tight sm:text-[2.6rem]">{unit.name}</h3>
-        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-soft">
-          <span className="inline-flex items-center gap-1.5">
-            <MapPin className="size-4 text-brand-700" /> {LOCATION_LABEL}
-          </span>
-          <span className="text-ink-muted/50">·</span>
-          <span>{RECOMMEND.percent}% recommend</span>
+      <div className="flex flex-col lg:col-span-5">
+        <h3 className="site-display text-brand-heading text-3xl leading-tight sm:text-[2.4rem]">{unit.name}</h3>
+        <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-ink-soft">
+          <MapPin className="size-4 text-brand-700" /> {LOCATION_LABEL}
         </p>
 
-        <dl className="mt-7 grid grid-cols-3 divide-x divide-sand-300/70 border-y border-sand-300/70 py-5">
-          <Stat value={String(unit.max_guests)} label="Guests" />
-          <Stat value="2" label="Pools" />
-          <Stat value={String(SLEEPING.length)} label="Rooms" />
-        </dl>
-
-        <p className="mt-6 line-clamp-4 text-[15px] leading-relaxed text-ink-soft">{about || unit.description || SITE.about}</p>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          {SLEEPING.map((r) => (
-            <div key={r.room} className="rounded-2xl bg-white/80 px-4 py-3.5 shadow-level-1">
-              <p className="site-display text-brand-heading text-base">{r.room}</p>
-              <p className="mt-1 text-xs leading-relaxed text-ink-soft">{r.beds.slice(0, 2).join(" · ")}</p>
-            </div>
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          {ROOMS.map((r) => (
+            <Link key={r.name} to={href} className="group overflow-hidden rounded-2xl bg-white shadow-level-2">
+              <div className="aspect-[4/3] overflow-hidden">
+                <img src={r.photo} alt={r.name} loading="lazy" className="size-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              </div>
+              <div className="px-3.5 py-3">
+                <p className="site-display text-brand-heading text-[15px] leading-tight">{r.name}</p>
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-ink-soft">
+                  <BedDouble className="size-3.5 shrink-0 text-brand-700" /> {r.beds}
+                </p>
+              </div>
+            </Link>
           ))}
         </div>
 
-        <div className="mt-7">
+        <div className="mt-auto pt-7">
           {search ? (
             <div className="rounded-2xl bg-white p-4 shadow-level-1">
               <div className="flex items-center justify-between gap-3">
@@ -107,14 +112,18 @@ export function StayFeature({ unit, href, search, about }: { unit: Unit; href: s
               {search.tooMany && <p className="mt-1 text-xs text-ink-muted">We fit up to {unit.max_guests}. Message us for bigger groups.</p>}
             </div>
           ) : (
-            <p className="text-sm text-ink-muted">
-              From <span className="font-display text-3xl text-ink">{money(unit.base_rate, true)}</span> / night
-              {unit.weekend_rate && unit.weekend_rate !== unit.base_rate ? ` · ${money(unit.weekend_rate, true)} Fri & Sat` : ""}
-            </p>
+            <div className="flex flex-wrap items-end gap-x-5 gap-y-1">
+              <p className="text-sm text-ink-muted">
+                From <span className="font-display text-4xl text-ink">{money(unit.base_rate, true)}</span> / night
+              </p>
+              {unit.weekend_rate && unit.weekend_rate !== unit.base_rate && (
+                <p className="pb-1 text-sm text-ink-muted">{money(unit.weekend_rate, true)} Fri & Sat</p>
+              )}
+            </div>
           )}
           <Link
             to={href}
-            className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-700 text-sm font-semibold text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90 sm:w-auto sm:px-9"
+            className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-700 text-sm font-semibold text-sand-50 shadow-level-2 transition-colors hover:bg-brand-700/90"
           >
             {search && !booked ? "Reserve these dates" : "See dates & book"} <ArrowRight className="size-4" />
           </Link>
@@ -124,63 +133,65 @@ export function StayFeature({ unit, href, search, about }: { unit: Unit; href: s
   );
 }
 
-function Photo({ src, alt, className }: { src: string; alt: string; className?: string }) {
+function Pill({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
   return (
-    <div className={cn("overflow-hidden bg-sand-100 shadow-level-2", className)}>
-      <img src={src} alt={alt} loading="lazy" className="size-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
-    </div>
+    <li className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink shadow-level-2 backdrop-blur sm:text-[13px]">
+      <Icon className="size-3.5 text-brand-700" /> {children}
+    </li>
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="px-2 text-center">
-      <dt className="sr-only">{label}</dt>
-      <dd className="font-display text-3xl leading-none text-brand-700">{value}</dd>
-      <dd className="mt-1.5 text-[10px] font-semibold tracking-[0.2em] text-ink-muted uppercase">{label}</dd>
-    </div>
-  );
-}
-
-// The fact sheet's amenities, each with its own small picture.
-const AMENITY_ICON: [RegExp, LucideIcon][] = [
-  [/pool/i, Waves],
-  [/karaoke/i, Mic],
-  [/bonfire/i, Flame],
-  [/bbq|grill/i, Drumstick],
-  [/refrigerator|fridge/i, Refrigerator],
-  [/stove/i, CookingPot],
-  [/utensil/i, Utensils],
-  [/dining/i, UtensilsCrossed],
-  [/billiard|badminton|board/i, Dices],
-  [/wifi/i, Wifi],
-  [/smart tv|\btv\b/i, Tv],
-  [/netflix|youtube/i, Clapperboard],
+/** The two rooms, shown by their photographs. Bed counts from the fact sheet. */
+const ROOMS = [
+  { name: "A-House", photo: PHOTOS.aframeLoft.src, beds: "2 double beds + sofa bed" },
+  { name: "Stilt Room", photo: PHOTOS.bunkRoom.src, beds: "3 double-deck beds + sofa bed" },
 ];
-const iconFor = (a: string) => AMENITY_ICON.find(([re]) => re.test(a))?.[1] ?? CheckCircle2;
 
-/** Everything inside the gate as small pictures with words, no boxes; the times beside them. */
+/** What's inside the gate, as pictures with two or three words each. */
+const INSIDE: { label: string; src: string; alt: string }[] = [
+  { label: "Private pools", src: PHOTOS.poolWaterfall.src, alt: PHOTOS.poolWaterfall.alt },
+  { label: "Billiards & games", src: PHOTOS.billiards.src, alt: PHOTOS.billiards.alt },
+  { label: "Bonfire nights", src: "/images/stays/bonfire-night.jpg", alt: "Friends at the bonfire under the string lights" },
+  { label: "Karaoke & Netflix", src: PHOTOS.aframeTv.src, alt: PHOTOS.aframeTv.alt },
+  { label: "Kitchen", src: PHOTOS.kitchen.src, alt: PHOTOS.kitchen.alt },
+  { label: "Garden & BBQ", src: PHOTOS.gardenUmbrellas.src, alt: PHOTOS.gardenUmbrellas.alt },
+  { label: "Kids' play area", src: PHOTOS.playground.src, alt: PHOTOS.playground.alt },
+  { label: "Event pavilion", src: PHOTOS.events.src, alt: PHOTOS.events.alt },
+];
+
+const EXTRAS: [LucideIcon, string][] = [
+  [Wifi, "PLDT WiFi"],
+  [Tv, "Smart TV"],
+  [Refrigerator, "Refrigerator"],
+  [CookingPot, "2-burner stove"],
+  [Utensils, "Utensils"],
+  [UtensilsCrossed, "Dining area"],
+  [Dices, "Badminton & board games"],
+];
+
+/** What's inside: photo tiles first, the small things as one row of chips, the times. */
 export function AmenityGrid({ checkIn, checkOut }: { checkIn?: string; checkOut?: string }) {
   return (
-    <div className="mt-16 border-t border-sand-300/60 pt-10 sm:mt-20">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h3 className="site-display text-brand-heading text-2xl leading-tight">Included in every stay</h3>
-        <p className="text-sm text-ink-soft">
-          Check-in {prettyTime(checkIn || "14:00")} <span className="text-ink-muted/50">·</span> Check-out {prettyTime(checkOut || "12:00")}
-        </p>
-      </div>
-      <ul className="mt-7 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-6">
-        {DEFAULT_AMENITIES.map((a) => {
-          const Icon = iconFor(a);
-          return (
-            <li key={a} className="flex items-center gap-3 lg:flex-col lg:items-start lg:gap-2.5">
-              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white text-brand-700 shadow-level-1">
-                <Icon className="size-5" strokeWidth={1.6} />
-              </span>
-              <span className="text-sm leading-snug text-ink">{a}</span>
-            </li>
-          );
-        })}
+    <div className="mt-16 sm:mt-20">
+      <h3 className="site-display text-brand-heading text-2xl leading-tight sm:text-3xl">What's inside</h3>
+      <ul className="no-scrollbar -mx-4 mt-6 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-4 sm:gap-4 sm:overflow-visible sm:px-0">
+        {INSIDE.map((t) => (
+          <li key={t.label} className="group relative aspect-[4/5] w-[46%] shrink-0 snap-start overflow-hidden rounded-2xl bg-sand-100 shadow-level-1 sm:w-auto">
+            <img src={t.src} alt={t.alt} loading="lazy" className="size-full object-cover transition-transform duration-700 group-hover:scale-105" />
+            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/65 to-transparent" />
+            <p className="absolute right-3 bottom-3 left-3 text-sm font-semibold text-white sm:text-[15px]">{t.label}</p>
+          </li>
+        ))}
+      </ul>
+      <ul className="mt-6 flex flex-wrap gap-2">
+        {EXTRAS.map(([Icon, label]) => (
+          <li key={label} className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-xs font-medium text-ink shadow-level-1">
+            <Icon className="size-3.5 text-brand-700" /> {label}
+          </li>
+        ))}
+        <li className="inline-flex items-center gap-1.5 rounded-full bg-brand-700 px-3 py-1.5 text-xs font-semibold text-sand-50">
+          <Clock className="size-3.5" /> In {prettyTime(checkIn || "14:00")} · Out {prettyTime(checkOut || "12:00")}
+        </li>
       </ul>
     </div>
   );

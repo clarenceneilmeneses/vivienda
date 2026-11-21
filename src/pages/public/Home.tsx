@@ -113,7 +113,7 @@ export default function Home() {
 
       {/* The search rides up onto the hero's lower edge, then sticks to the top
           as the page scrolls. Outside the hero: sticky is inert in overflow-hidden. */}
-      <div className="pointer-events-none sticky top-0 z-20 -mt-12 -mb-12 px-4 pt-3 pb-3 sm:-mt-16 sm:-mb-14 sm:px-8 [&>*]:pointer-events-auto">
+      <div className="pointer-events-none sticky top-0 z-20 -mb-[76px] px-4 pt-3 pb-3 sm:-mt-16 sm:-mb-14 sm:px-8 [&>*]:pointer-events-auto">
         <SearchPill
           value={draft}
           onChange={setDraft}
@@ -128,7 +128,7 @@ export default function Home() {
       </div>
 
       {/* ── The stay, on linen ── */}
-      <section id="stay" className="scroll-mt-24 bg-linen px-4 pt-20 pb-14 sm:px-8 sm:pt-24 sm:pb-20">
+      <section id="stay" className="scroll-mt-24 bg-linen px-4 pt-24 pb-14 sm:px-8 sm:pt-24 sm:pb-20">
         <div className="mx-auto max-w-7xl">
           <Heading eyebrow="Booked whole, never shared" title="Your private haven" center />
           {isLoading ? (
