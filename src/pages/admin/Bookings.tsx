@@ -9,6 +9,7 @@ import { SOURCE_LABEL, STATUS_LABEL, type BookingSummary } from "../../lib/types
 import { Button, Card, EmptyState, Input, PageHeader, Spinner, StatusBadge, Tabs } from "../../components/ui";
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
 import { BookingForm } from "../../components/admin/BookingForm";
+import { stayInRange, useAdminRange } from "../../lib/admin-range";
 
 type View = "action" | "upcoming" | "inhouse" | "past" | "cancelled" | "all";
 
@@ -35,19 +36,23 @@ export default function Bookings() {
   const [adding, setAdding] = useState(false);
   const { data: all, isLoading } = useAllBookings();
   const today = isoDate(new Date());
+  const range = useAdminRange();
+  // What needs doing now ignores the dates; history follows the top bar's dates.
+  const dated = view === "past" || view === "cancelled" || view === "all";
 
   const groups = useMemo(() => {
     const list = all ?? [];
+    const inDates = (b: BookingSummary) => stayInRange(b.check_in, b.check_out, range.from, range.to);
     const byCheckIn = (a: BookingSummary, b: BookingSummary) => a.check_in.localeCompare(b.check_in);
     return {
       action: list.filter((b) => b.status === "pending").sort(byCheckIn),
       upcoming: list.filter((b) => b.status === "confirmed").sort(byCheckIn),
       inhouse: list.filter((b) => b.status === "checked_in").sort(byCheckIn),
-      past: list.filter((b) => b.status === "checked_out"),
-      cancelled: list.filter((b) => b.status === "cancelled" || b.status === "declined"),
-      all: list,
+      past: list.filter((b) => b.status === "checked_out" && inDates(b)),
+      cancelled: list.filter((b) => (b.status === "cancelled" || b.status === "declined") && inDates(b)),
+      all: list.filter(inDates),
     } satisfies Record<View, BookingSummary[]>;
-  }, [all]);
+  }, [all, range.from, range.to]);
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -91,6 +96,11 @@ export default function Bookings() {
     <>
       <PageHeader
         title="Bookings"
+        description={
+          dated
+            ? `Stays with a night in ${range.label}. Change the dates in the top bar.`
+            : "Needs action, upcoming and in house always show everything open."
+        }
         actions={
           <>
             <Button variant="secondary" onClick={exportCsv} disabled={!rows.length}>
@@ -112,9 +122,9 @@ export default function Bookings() {
               { value: "action", label: "Needs action", count: groups.action.length },
               { value: "upcoming", label: "Upcoming", count: groups.upcoming.length },
               { value: "inhouse", label: "In house", count: groups.inhouse.length },
-              { value: "past", label: "Past" },
-              { value: "cancelled", label: "Cancelled" },
-              { value: "all", label: "All" },
+              { value: "past", label: "Past", count: groups.past.length },
+              { value: "cancelled", label: "Cancelled", count: groups.cancelled.length },
+              { value: "all", label: "All", count: groups.all.length },
             ]}
             className="border-b-0"
           />
@@ -137,7 +147,7 @@ export default function Bookings() {
             </EmptyState>
           ) : (
             <>
-              <table className="hidden w-full text-sm md:table">
+              <table className="admin-table hidden w-full text-sm md:table">
                 <thead className="text-left text-xs text-ink-muted">
                   <tr className="border-b border-sand-200">
                     <th className="px-4 py-2.5 font-medium">Guest</th>

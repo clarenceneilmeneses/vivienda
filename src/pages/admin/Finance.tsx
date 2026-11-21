@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Download, Pencil, Plus, Receipt, Table2, BarChart3, Trash2 } from "lucide-react";
 import { errorMessage, supabase } from "../../lib/supabase";
 import { downloadCsv, isoDate, money, prettyDate } from "../../lib/format";
+import { useAdminRange } from "../../lib/admin-range";
 import {
   EXPENSE_CATEGORIES,
   METHOD_LABEL,
@@ -16,6 +17,7 @@ import {
 import { useUnits } from "../../lib/queries";
 import {
   Button,
+  ask,
   Card,
   CardHeader,
   EmptyState,
@@ -45,19 +47,19 @@ function signed(p: Payment) {
 
 export default function Finance() {
   const qc = useQueryClient();
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState<number | "all">(now.getMonth());
+  // The top bar's dates decide the period; the chart shows that period's year.
+  const range = useAdminRange();
+  const year = Number(range.to.slice(0, 4));
   const [tab, setTab] = useState<"payments" | "expenses" | "unpaid">("payments");
   const [asTable, setAsTable] = useState(false);
   const [editing, setEditing] = useState<Expense | "new" | null>(null);
   const [openBooking, setOpenBooking] = useState<string | null>(null);
 
-  const yearFrom = `${year}-01-01`;
+  const yearFrom = range.from < `${year}-01-01` ? range.from : `${year}-01-01`;
   const yearTo = `${year}-12-31`;
 
   const { data: payments, isLoading: loadingP } = useQuery({
-    queryKey: ["payments", "year", year],
+    queryKey: ["payments", "year", yearFrom, yearTo],
     queryFn: async (): Promise<PaymentRow[]> => {
       const { data, error } = await supabase
         .from("payments")
@@ -70,7 +72,7 @@ export default function Finance() {
     },
   });
   const { data: expenses, isLoading: loadingE } = useQuery({
-    queryKey: ["expenses", "year", year],
+    queryKey: ["expenses", "year", yearFrom, yearTo],
     queryFn: async (): Promise<Expense[]> => {
       const { data, error } = await supabase
         .from("expenses")
@@ -85,9 +87,9 @@ export default function Finance() {
   const { data: bookings } = useAllBookings();
   const { data: units } = useUnits();
 
-  const inPeriod = (iso: string) => month === "all" || Number(iso.slice(5, 7)) - 1 === month;
-  const periodPayments = useMemo(() => (payments ?? []).filter((p) => inPeriod(p.paid_on)), [payments, month]); // eslint-disable-line react-hooks/exhaustive-deps
-  const periodExpenses = useMemo(() => (expenses ?? []).filter((e) => inPeriod(e.spent_on)), [expenses, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  const inPeriod = (iso: string) => iso >= range.from && iso <= range.to;
+  const periodPayments = useMemo(() => (payments ?? []).filter((p) => inPeriod(p.paid_on)), [payments, range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
+  const periodExpenses = useMemo(() => (expenses ?? []).filter((e) => inPeriod(e.spent_on)), [expenses, range.from, range.to]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const income = periodPayments.reduce((s, p) => s + signed(p), 0);
   const spent = periodExpenses.reduce((s, e) => s + e.amount, 0);
@@ -105,10 +107,11 @@ export default function Finance() {
 
   const monthly: MonthPoint[] = useMemo(() => {
     const pts = MONTHS.map((label) => ({ label, income: 0, expenses: 0 }));
-    (payments ?? []).forEach((p) => (pts[Number(p.paid_on.slice(5, 7)) - 1].income += signed(p)));
-    (expenses ?? []).forEach((e) => (pts[Number(e.spent_on.slice(5, 7)) - 1].expenses += e.amount));
+    const ofYear = (iso: string) => iso.startsWith(String(year));
+    (payments ?? []).filter((p) => ofYear(p.paid_on)).forEach((p) => (pts[Number(p.paid_on.slice(5, 7)) - 1].income += signed(p)));
+    (expenses ?? []).filter((e) => ofYear(e.spent_on)).forEach((e) => (pts[Number(e.spent_on.slice(5, 7)) - 1].expenses += e.amount));
     return pts;
-  }, [payments, expenses]);
+  }, [payments, expenses, year]);
 
   const byCategory = useMemo(() => {
     const m = new Map<string, number>();
@@ -127,40 +130,29 @@ export default function Finance() {
       .sort((a, b) => b.value - a.value);
   }, [periodPayments, units]);
 
-  const periodLabel = month === "all" ? String(year) : format(new Date(year, month, 1), "MMMM yyyy");
+  const periodLabel = range.name;
 
   async function deleteExpense(e: Expense) {
-    if (!confirm(`Delete "${e.description}" (${money(e.amount)})?`)) return;
+    const ok = await ask({
+      title: `Delete “${e.description}”?`,
+      description: `${money(e.amount)} on ${e.spent_on} comes off your expenses.`,
+      confirmLabel: `Delete ${money(e.amount)}`,
+    });
+    if (!ok) return;
     const { error } = await supabase.from("expenses").delete().eq("id", e.id);
     if (error) return toast.error(errorMessage(error));
     toast.success("Expense deleted");
     qc.invalidateQueries();
   }
 
-  const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() + 1 - i);
 
   return (
     <>
       <PageHeader
         title="Finance"
-        description="Income is money received (by payment date). Expenses are what you record here."
+        description={`${range.label}. Income is money received (by payment date); expenses are what you record here. Change the dates in the top bar.`}
         actions={
           <>
-            <Select value={month} onChange={(e) => setMonth(e.target.value === "all" ? "all" : Number(e.target.value))} className="w-36">
-              <option value="all">Whole year</option>
-              {MONTHS.map((m, i) => (
-                <option key={m} value={i}>
-                  {format(new Date(2024, i, 1), "MMMM")}
-                </option>
-              ))}
-            </Select>
-            <Select value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-28">
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </Select>
             <Button onClick={() => setEditing("new")}>
               <Plus className="size-4" /> Add expense
             </Button>
@@ -258,7 +250,7 @@ export default function Finance() {
             size="sm"
             className="mb-1.5"
             onClick={() => {
-              const stamp = month === "all" ? String(year) : `${year}-${String(month + 1).padStart(2, "0")}`;
+              const stamp = range.from === range.to ? range.from : `${range.from}_${range.to}`;
               if (tab === "payments")
                 downloadCsv(`payments-${stamp}.csv`, [
                   ["Date", "Type", "Amount", "Method", "Booking", "Guest", "Reference", "Notes"],

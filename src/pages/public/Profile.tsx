@@ -101,7 +101,7 @@ function ProfileBody() {
         </div>
       </form>
 
-      <Button variant="secondary" className="mt-6 w-full" onClick={() => void signOut()}>
+      <Button variant="danger" className="mt-6 w-full" onClick={() => void signOut()}>
         <LogOut className="size-4" /> Sign out
       </Button>
 

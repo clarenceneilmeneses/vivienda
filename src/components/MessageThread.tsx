@@ -6,7 +6,7 @@ import { Ban, CalendarCheck, Copy, ImageOff, ImagePlus, MoreHorizontal, Pencil, 
 import { supabase } from "../lib/supabase";
 import { cn } from "../lib/utils";
 import { REACTIONS, type Message } from "../lib/types";
-import { Button, Textarea } from "./ui";
+import { ask, Button, Textarea } from "./ui";
 
 export interface MessageActions {
   onEdit: (m: Message, body: string) => Promise<void>;
@@ -316,7 +316,13 @@ function Bubble({
                           icon={<Undo2 className="size-3.5" />}
                           onClick={async () => {
                             setMenu(false);
-                            if (confirm("Unsend this message? The guest will see that a message was removed.")) {
+                            if (
+                              await ask({
+                                title: "Unsend this message?",
+                                description: "The guest will see that a message was removed.",
+                                confirmLabel: "Unsend",
+                              })
+                            ) {
                               await actions.onUnsend(m);
                             }
                           }}

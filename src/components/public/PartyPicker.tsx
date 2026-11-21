@@ -33,7 +33,9 @@ export function partyLabel(p: Party) {
 }
 
 /** Adults, children and pets, as on Airbnb. Children count toward the guest limit; pets have their own. */
-export function PartyPicker({ unit, value, onChange }: { unit: Unit; value: Party; onChange: (p: Party) => void }) {
+export type PartyLimits = Pick<Unit, "max_guests" | "max_pets" | "pet_fee">;
+
+export function PartyPicker({ unit, value, onChange }: { unit: PartyLimits; value: Party; onChange: (p: Party) => void }) {
   const adults = value.guests - value.children;
   const rows: { title: string; note: string; count: number; min: number; max: number; set: (n: number) => void; label: string }[] = [
     {

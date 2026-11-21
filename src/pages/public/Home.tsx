@@ -43,6 +43,8 @@ export default function Home() {
     checkIn: params.get("in") ?? "",
     checkOut: params.get("out") ?? "",
     guests: Number(params.get("guests")) || 2,
+    children: Number(params.get("kids")) || 0,
+    pets: Number(params.get("pets")) || 0,
   };
   const [draft, setDraft] = useState<StaySearch>(applied);
   const searching = Boolean(applied.checkIn && applied.checkOut && applied.checkOut > applied.checkIn);
@@ -55,13 +57,15 @@ export default function Home() {
       next.set("out", draft.checkOut);
     }
     next.set("guests", String(draft.guests));
+    if (draft.children) next.set("kids", String(draft.children));
+    if (draft.pets) next.set("pets", String(draft.pets));
     setParams(next, { replace: true });
     document.getElementById("stay")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   // For a dated search: are those nights free, and what does the stay cost.
   const { data: check, isFetching: checking } = useQuery({
-    queryKey: ["search", resort?.id, applied.checkIn, applied.checkOut, applied.guests],
+    queryKey: ["search", resort?.id, applied.checkIn, applied.checkOut, applied.guests, applied.pets],
     enabled: Boolean(resort && searching),
     queryFn: async () => {
       const u = resort!;
@@ -73,6 +77,7 @@ export default function Home() {
           p_check_in: applied.checkIn,
           p_check_out: applied.checkOut,
           p_guests: Math.min(applied.guests, u.max_guests),
+          p_pets: Math.min(applied.pets, u.max_pets),
         }),
       ]);
       if (taken.error) throw taken.error;
@@ -91,6 +96,8 @@ export default function Home() {
       q.set("out", applied.checkOut);
     }
     q.set("guests", String(Math.min(applied.guests, u.max_guests)));
+    if (applied.children) q.set("kids", String(Math.min(applied.children, applied.guests - 1)));
+    if (applied.pets && u.max_pets) q.set("pets", String(Math.min(applied.pets, u.max_pets)));
     return `/stay/${u.slug}?${q}`;
   };
 
@@ -124,7 +131,11 @@ export default function Home() {
           value={draft}
           onChange={setDraft}
           onSearch={runSearch}
-          maxGuests={Math.max(resort?.max_guests ?? 2, 2)}
+          limits={{
+            max_guests: Math.max(resort?.max_guests ?? 2, 2),
+            max_pets: resort?.max_pets ?? 0,
+            pet_fee: resort?.pet_fee ?? 0,
+          }}
           unavailable={taken}
         />
       </div>
@@ -154,7 +165,7 @@ export default function Home() {
                       total: check?.total ?? null,
                       tooMany: applied.guests > resort.max_guests,
                       onClear: () => {
-                        setDraft({ checkIn: "", checkOut: "", guests: applied.guests });
+                        setDraft({ ...applied, checkIn: "", checkOut: "" });
                         setParams({}, { replace: true });
                       },
                     }

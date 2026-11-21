@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Plus, Send, Trash2 } from "lucide-react";
 import { errorMessage, supabase } from "../../lib/supabase";
 import type { QuickReply } from "../../lib/types";
-import { Badge, Button, Field, Input, Select, Textarea } from "../ui";
+import { ask, Badge, Button, Field, Input, Select, Textarea } from "../ui";
 
 const AUTO_LABEL: Record<NonNullable<QuickReply["auto_send"]>, string> = {
   booking_created: "When a booking is made",
@@ -49,7 +49,8 @@ export function QuickRepliesManager() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this quick reply?")) return;
+    const r = replies.find((x) => x.id === id);
+    if (!(await ask({ title: `Delete “${r?.title ?? "this reply"}”?`, confirmLabel: "Delete reply" }))) return;
     const { error } = await supabase.from("quick_replies").delete().eq("id", id);
     if (error) return void toast.error(errorMessage(error));
     await qc.invalidateQueries({ queryKey: ["inbox", "quick-replies"] });

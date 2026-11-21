@@ -11,7 +11,6 @@ import {
   ChevronRight,
   ClipboardList,
   CreditCard,
-  ExternalLink,
   LayoutDashboard,
   LayoutGrid,
   LogOut,
@@ -36,6 +35,8 @@ import { useInboxUnread, usePendingReviews } from "../../lib/admin-badges";
 import { useLiveTables } from "../../lib/guest";
 import { Button, Spinner } from "../ui";
 import { PasswordModal } from "../PasswordModal";
+import { AdminRangeProvider } from "../../lib/admin-range";
+import { DateFilter } from "./DateFilter";
 
 /**
  * The admin's frame, after Malaya OBS: a floating espresso sidebar with
@@ -122,11 +123,11 @@ function usePendingCount(enabled: boolean) {
 function Wordmark({ compact = false }: { compact?: boolean }) {
   return (
     <Link to="/admin" className="flex min-w-0 items-center gap-3" aria-label="Dashboard">
-      <img src="/images/logo-192.png" alt="" className="size-10 shrink-0 rounded-full ring-1 ring-cream/15" />
+      <img src="/images/logo-192.png" alt="" className="size-10 shrink-0 rounded-full ring-1 ring-sand-200" />
       {!compact && (
         <span className="min-w-0 leading-tight">
-          <span className="block font-display text-[15px] tracking-[0.18em] text-cream">VIVIENDA</span>
-          <span className="block truncate text-[10px] tracking-[0.1em] text-cream/60 uppercase">Resort admin</span>
+          <span className="block font-display text-[15px] tracking-[0.18em] text-ink">VIVIENDA</span>
+          <span className="block truncate text-[10px] tracking-[0.1em] text-ink-muted uppercase">Resort admin</span>
         </span>
       )}
     </Link>
@@ -136,7 +137,7 @@ function Wordmark({ compact = false }: { compact?: boolean }) {
 function Count({ n, collapsed }: { n: number; collapsed?: boolean }) {
   if (n <= 0) return null;
   return collapsed ? (
-    <span className="absolute -top-1 -right-1 size-2 rounded-full bg-brand-500 ring-2 ring-espresso" />
+    <span className="absolute -top-1 -right-1 size-2 rounded-full bg-brand-500 ring-2 ring-white" />
   ) : (
     <span className="ml-auto shrink-0 rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] leading-none font-semibold text-white" title={`${n} waiting`}>
       {n > 99 ? "99+" : n}
@@ -173,13 +174,13 @@ function NavList({ collapsed = false, onNavigate, badges }: { collapsed?: boolea
         return (
           <div key={group.label} className={gi > 0 ? (collapsed ? "mt-2" : "mt-5") : ""}>
             {collapsed ? (
-              gi > 0 && <div className="mx-auto mb-2 h-px w-5 bg-espresso-soft" />
+              gi > 0 && <div className="mx-auto mb-2 h-px w-5 bg-sand-200" />
             ) : (
               <button
                 type="button"
                 onClick={() => toggle(group.label)}
                 aria-expanded={!isFolded}
-                className="flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-3 pb-1.5 text-[11px] font-semibold tracking-[0.14em] text-cream/45 uppercase transition-colors hover:text-cream/70"
+                className="flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-3 pb-1.5 text-[11px] font-semibold tracking-[0.14em] text-ink-muted/70 uppercase transition-colors hover:text-ink"
               >
                 <ChevronRight className={cn("size-3 shrink-0 transition-transform", !isFolded && "rotate-90")} />
                 {group.label}
@@ -199,9 +200,9 @@ function NavList({ collapsed = false, onNavigate, badges }: { collapsed?: boolea
                       aria-label={collapsed ? label : undefined}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "group relative flex items-center rounded-xl text-[15px] transition-colors",
-                        collapsed ? "mx-auto size-10 justify-center" : "gap-3 px-3 py-2.5",
-                        active ? "bg-espresso-soft text-cream shadow-level-2" : "text-cream/75 hover:bg-espresso-soft hover:text-cream",
+                        "group relative flex items-center rounded-full text-[15px] transition-colors",
+                        collapsed ? "mx-auto size-10 justify-center" : "gap-3 px-3 py-2",
+                        active ? "bg-sand-100 font-medium text-brand-700" : "text-ink-soft hover:bg-sand-100/70 hover:text-ink",
                       )}
                     >
                       <span className="relative shrink-0">
@@ -222,7 +223,10 @@ function NavList({ collapsed = false, onNavigate, badges }: { collapsed?: boolea
   );
 }
 
-function AccountMenu({ email, onSignOut }: { email: string; onSignOut: () => void }) {
+/** A group of top-bar controls on one white, lifted, fully rounded strip (Malaya's TOP_PILL). */
+const TOP_PILL = "flex items-center gap-0.5 rounded-full border border-sand-200/80 bg-white p-0.5 shadow-level-2";
+
+function AccountMenu({ email, onSignOut, align = "right" }: { email: string; onSignOut: () => void; align?: "left" | "right" }) {
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const { pathname } = useLocation();
@@ -234,6 +238,7 @@ function AccountMenu({ email, onSignOut }: { email: string; onSignOut: () => voi
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Account menu"
+        title="Your account"
         aria-expanded={open}
         className="grid size-9 cursor-pointer place-items-center rounded-full bg-brand-700 text-sm font-semibold text-sand-50 ring-2 ring-white transition-shadow hover:shadow-level-2"
       >
@@ -242,7 +247,12 @@ function AccountMenu({ email, onSignOut }: { email: string; onSignOut: () => voi
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute top-full right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-sand-200 bg-white py-1.5 shadow-level-4">
+          <div
+            className={cn(
+              "absolute top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-sand-200 bg-white py-1.5 shadow-level-4",
+              align === "right" ? "right-0" : "left-0",
+            )}
+          >
             <div className="border-b border-sand-200 px-4 pt-2 pb-3">
               <p className="truncate text-sm font-medium text-ink">Signed in</p>
               <p className="truncate text-xs text-ink-muted">{email}</p>
@@ -256,12 +266,9 @@ function AccountMenu({ email, onSignOut }: { email: string; onSignOut: () => voi
             <Link to="/admin/settings" className={item}>
               <Settings2 className="size-4 text-ink-muted" /> Settings
             </Link>
-            <a href="/" target="_blank" rel="noreferrer" className={item}>
-              <ExternalLink className="size-4 text-ink-muted" /> View website
-            </a>
             <div className="my-1 h-px bg-sand-200" />
-            <button type="button" onClick={onSignOut} className={item}>
-              <LogOut className="size-4 text-ink-muted" /> Sign out
+            <button type="button" onClick={onSignOut} className={cn(item, "text-red-700 hover:bg-red-50")}>
+              <LogOut className="size-4" /> Sign out
             </button>
           </div>
         </>
@@ -282,7 +289,16 @@ function LiveClock() {
   return <span className="hidden text-sm whitespace-nowrap text-ink-muted tabular-nums xl:inline">{fmt.format(now)}</span>;
 }
 
+/** The admin, inside the one date filter every screen reads. */
 export default function AdminLayout() {
+  return (
+    <AdminRangeProvider>
+      <AdminShell />
+    </AdminRangeProvider>
+  );
+}
+
+function AdminShell() {
   const { session, isAdmin, loading, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -326,7 +342,7 @@ export default function AdminLayout() {
             {session.user.email} is signed in but isn't on the admin list. Add this email to the{" "}
             <code className="rounded bg-sand-100 px-1">admins</code> table in Supabase.
           </p>
-          <Button variant="secondary" className="mt-5" onClick={signOut}>
+          <Button variant="danger" className="mt-5" onClick={signOut}>
             Sign out
           </Button>
         </div>
@@ -345,7 +361,7 @@ export default function AdminLayout() {
       {/* Desktop sidebar: a floating espresso card. */}
       <aside
         className={cn(
-          "fixed inset-y-3 left-3 z-40 hidden flex-col overflow-hidden rounded-2xl bg-espresso shadow-level-2 transition-[width] duration-200 lg:flex",
+          "fixed inset-y-3 left-3 z-40 hidden flex-col overflow-hidden rounded-2xl border border-sand-200/80 bg-white shadow-level-2 transition-[width] duration-200 lg:flex",
           collapsed ? "w-[64px]" : "w-[248px]",
         )}
       >
@@ -356,37 +372,22 @@ export default function AdminLayout() {
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsed}
             title={collapsed ? "Expand" : "Collapse"}
-            className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-cream/60 hover:bg-espresso-soft hover:text-cream"
+            className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full text-ink-muted hover:bg-sand-100 hover:text-ink"
           >
             {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
           </button>
         </div>
         <NavList collapsed={collapsed} badges={badges} />
-        {!collapsed && (
-          <a
-            href="/"
-            target="_blank"
-            rel="noreferrer"
-            className="mx-3 mb-3 flex items-center gap-3 rounded-xl border border-espresso-soft p-3 text-cream/80 transition-colors hover:bg-espresso-soft hover:text-cream"
-          >
-            <img src="/images/pool-waterfall.jpg" alt="" className="size-10 shrink-0 rounded-lg object-cover" />
-            <span className="min-w-0 text-sm leading-tight">
-              <span className="block truncate">Your website</span>
-              <span className="block truncate text-[11px] text-cream/50">See it as guests do</span>
-            </span>
-            <ExternalLink className="ml-auto size-3.5 shrink-0 opacity-60" />
-          </a>
-        )}
       </aside>
 
       {/* Phone drawer, opened from More on the nav pill. */}
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-espresso/45 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
-          <aside className="relative flex h-full w-[272px] flex-col bg-espresso">
+          <aside className="relative flex h-full w-[272px] flex-col bg-white shadow-level-4">
             <div className="flex items-center justify-between px-4 pt-5 pb-5">
               <Wordmark />
-              <button onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-cream/70 hover:bg-espresso-soft" aria-label="Close menu">
+              <button onClick={() => setOpen(false)} className="rounded-full p-1.5 text-ink-muted hover:bg-sand-100" aria-label="Close menu" title="Close menu">
                 <X className="size-5" />
               </button>
             </div>
@@ -397,10 +398,13 @@ export default function AdminLayout() {
 
       <div className={cn("transition-[padding] duration-200 lg:py-3 lg:pr-3", collapsed ? "lg:pl-[88px]" : "lg:pl-[272px]")}>
         <div className="flex min-h-screen flex-col lg:h-[calc(100vh-1.5rem)] lg:min-h-0 lg:overflow-hidden lg:rounded-2xl lg:bg-white lg:shadow-level-2">
-          <header className="sticky top-0 z-30 border-b border-sand-200/80 bg-white/85 backdrop-blur-xl lg:static">
-            <div className="flex items-center gap-3 px-4 py-2.5 sm:px-6">
-              <img src="/images/logo-192.png" alt="" className="size-8 rounded-full lg:hidden" />
-              <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
+          <header className="sticky top-0 z-30 bg-sand-100/85 backdrop-blur-xl lg:static lg:bg-white/85">
+            <div className="flex items-center gap-3 px-4 py-3 sm:px-6 lg:py-2">
+              {/* Phone: you on the left, the date filter in a pill on the right, as in Malaya. */}
+              <div className="lg:hidden">
+                <AccountMenu email={email} onSignOut={() => void signOut()} align="left" />
+              </div>
+              <nav aria-label="Breadcrumb" className="hidden min-w-0 flex-1 lg:block">
                 <ol className="flex min-w-0 items-center gap-1.5 text-[15px]">
                   <li className="hidden text-ink-muted sm:block">{SITE.name}</li>
                   {tab && (
@@ -423,18 +427,16 @@ export default function AdminLayout() {
                 </ol>
               </nav>
               <LiveClock />
-              <a
-                href="/"
-                target="_blank"
-                rel="noreferrer"
-                className="hidden items-center gap-1.5 rounded-xl border border-sand-300 px-3 py-1.5 text-sm text-ink-soft hover:bg-sand-100 md:inline-flex"
-              >
-                <ExternalLink className="size-3.5" /> View website
-              </a>
-              <AccountMenu email={email} onSignOut={() => void signOut()} />
+              <div className={cn(TOP_PILL, "ml-auto min-w-0 lg:ml-0")}>
+                <DateFilter />
+              </div>
+              <div className="hidden lg:block">
+                <AccountMenu email={email} onSignOut={() => void signOut()} />
+              </div>
             </div>
             {tab?.subTabs && (
-              <div className="no-scrollbar flex gap-1 overflow-x-auto border-t border-sand-200/70 px-4 py-1.5 sm:px-6">
+              <div className="px-4 pb-2 sm:px-6">
+                <div className="no-scrollbar inline-flex max-w-full gap-0.5 overflow-x-auto rounded-full border border-sand-200/80 bg-white p-1 shadow-level-1">
                 {tab.subTabs.map((s) => (
                   <NavLink
                     key={s.to}
@@ -444,7 +446,7 @@ export default function AdminLayout() {
                     className={({ isActive: on }) =>
                       cn(
                         "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] transition-colors",
-                        on ? "bg-brand-700 text-sand-50 shadow-level-2" : "text-ink-muted hover:bg-sand-100 hover:text-ink",
+                        on ? "bg-sand-100 font-medium text-brand-700" : "text-ink-muted hover:bg-sand-100/60 hover:text-ink",
                       )
                     }
                   >
@@ -452,6 +454,7 @@ export default function AdminLayout() {
                     {s.label}
                   </NavLink>
                 ))}
+                </div>
               </div>
             )}
           </header>

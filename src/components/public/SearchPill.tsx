@@ -4,11 +4,15 @@ import { CalendarDays, ChevronDown, Minus, Plus, Search, Users, X } from "lucide
 import { RangeCalendar } from "../RangeCalendar";
 import { prettyDate } from "../../lib/format";
 import { cn } from "../../lib/utils";
+import { PartyPicker, partyLabel, type PartyLimits } from "./PartyPicker";
 
 export interface StaySearch {
   checkIn: string;
   checkOut: string;
+  /** Head count: adults plus children. */
   guests: number;
+  children: number;
+  pets: number;
 }
 
 const EMPTY = new Set<string>();
@@ -22,13 +26,14 @@ export function SearchPill({
   value,
   onChange,
   onSearch,
-  maxGuests,
+  limits,
   unavailable = EMPTY,
 }: {
   value: StaySearch;
   onChange: (v: StaySearch) => void;
   onSearch: () => void;
-  maxGuests: number;
+  /** How many guests and pets the place takes, and the pet fee. */
+  limits: PartyLimits;
   /** Nights already taken, crossed out in the calendar. */
   unavailable?: Set<string>;
 }) {
@@ -51,7 +56,7 @@ export function SearchPill({
   }, [open]);
 
   const short = (iso: string) => (iso ? prettyDate(iso, "MMM d") : "");
-  const guestLabel = `${value.guests} guest${value.guests === 1 ? "" : "s"}`;
+  const guestLabel = partyLabel(value);
   const toggle = (name: "dates" | "guests") => setOpen((o) => (o === name ? null : name));
 
   function search() {
@@ -150,7 +155,7 @@ export function SearchPill({
         <SearchSheet
           value={value}
           onChange={onChange}
-          maxGuests={maxGuests}
+          limits={limits}
           unavailable={unavailable}
           onClose={() => setSheet(false)}
           onSearch={() => {
@@ -161,14 +166,8 @@ export function SearchPill({
       )}
 
       {open === "guests" && (
-        <div className="absolute top-full right-0 z-30 mt-3 w-72 rounded-2xl border border-sand-200/70 bg-white p-5 shadow-level-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-ink">Guests</p>
-              <p className="text-xs text-ink-muted">Up to {maxGuests}</p>
-            </div>
-            <Stepper value={value.guests} min={1} max={maxGuests} onChange={(g) => onChange({ ...value, guests: g })} />
-          </div>
+        <div className="absolute top-full right-0 z-30 mt-3 w-80 rounded-2xl border border-sand-200/70 bg-white p-5 shadow-level-4">
+          <PartyPicker unit={limits} value={value} onChange={(p) => onChange({ ...value, ...p })} />
         </div>
       )}
     </div>
@@ -179,14 +178,14 @@ export function SearchPill({
 function SearchSheet({
   value,
   onChange,
-  maxGuests,
+  limits,
   unavailable,
   onClose,
   onSearch,
 }: {
   value: StaySearch;
   onChange: (v: StaySearch) => void;
-  maxGuests: number;
+  limits: PartyLimits;
   unavailable: Set<string>;
   onClose: () => void;
   onSearch: () => void;
@@ -233,12 +232,10 @@ function SearchSheet({
             />
           </div>
         </section>
-        <section className="flex items-center justify-between rounded-3xl bg-white p-5 shadow-level-2">
-          <div>
-            <h2 className="font-display text-2xl text-ink">Who?</h2>
-            <p className="text-sm text-ink-muted">Up to {maxGuests} guests</p>
-          </div>
-          <Stepper value={value.guests} min={1} max={maxGuests} onChange={(g) => onChange({ ...value, guests: g })} />
+        <section className="rounded-3xl bg-white p-5 shadow-level-2">
+          <h2 className="font-display text-2xl text-ink">Who?</h2>
+          <p className="mb-4 text-sm text-ink-muted">{partyLabel(value)}</p>
+          <PartyPicker unit={limits} value={value} onChange={(p) => onChange({ ...value, ...p })} />
         </section>
       </div>
       <div className="flex items-center justify-between border-t border-sand-200 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">

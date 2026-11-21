@@ -8,6 +8,7 @@ import { REVIEWS } from "../../lib/site";
 import { cn } from "../../lib/utils";
 import { REVIEW_SOURCE_LABEL, type Review, type ReviewSource } from "../../lib/types";
 import {
+  ask,
   Badge,
   Button,
   Card,
@@ -71,7 +72,7 @@ export default function Reviews() {
   }
 
   async function remove(r: Row) {
-    if (!confirm(`Delete ${r.reviewer_name || "this"}'s review? This can't be undone.`)) return;
+    if (!(await ask({ title: `Delete ${r.reviewer_name || "this"}'s review?`, confirmLabel: "Delete review" }))) return;
     const { error } = await supabase.from("reviews").delete().eq("id", r.id);
     if (error) return void toast.error(errorMessage(error));
     await qc.invalidateQueries({ queryKey: ["reviews"] });
@@ -164,7 +165,7 @@ export default function Reviews() {
               )}
               <div className="mt-4 flex flex-wrap gap-2 border-t border-sand-200 pt-4">
                 {r.status !== "published" && (
-                  <Button size="sm" onClick={() => setStatus(r, "published")}>
+                  <Button size="sm" variant="success" onClick={() => setStatus(r, "published")}>
                     <Eye className="size-3.5" /> Publish
                   </Button>
                 )}
@@ -185,7 +186,7 @@ export default function Reviews() {
                   <MessageSquareReply className="size-3.5" /> {r.host_reply ? "Edit reply" : "Reply publicly"}
                 </Button>
                 {!r.booking_id && (
-                  <Button size="sm" variant="ghost" className="ml-auto text-red-700" onClick={() => remove(r)}>
+                  <Button size="sm" variant="danger" className="ml-auto" onClick={() => remove(r)}>
                     <Trash2 className="size-3.5" /> Delete
                   </Button>
                 )}

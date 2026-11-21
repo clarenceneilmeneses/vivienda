@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "./lib/auth";
 import App from "./App";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { ConfirmHost } from "./components/ui";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -21,6 +22,7 @@ createRoot(document.getElementById("root")!).render(
         <BrowserRouter>
           <App />
           <UpdateBanner />
+          <ConfirmHost />
           <Toaster position="top-center" richColors closeButton />
         </BrowserRouter>
       </AuthProvider>

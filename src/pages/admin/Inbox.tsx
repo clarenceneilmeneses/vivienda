@@ -416,7 +416,7 @@ function ThreadPane({ row, onBack }: { row: Row; onBack: () => void }) {
                 <button
                   type="button"
                   onClick={() => setOpenBooking(id)}
-                  className="cursor-pointer font-medium text-brand-700 underline underline-offset-2"
+                  className="link-action"
                 >
                   Open booking
                 </button>
@@ -798,7 +798,7 @@ function DetailsPane({
         <div>
           <div className="flex items-center justify-between">
             <p className="eyebrow">Bookings</p>
-            <button type="button" onClick={onCreate} className="cursor-pointer text-xs font-medium text-brand-700 hover:underline">
+            <button type="button" onClick={onCreate} className="link-action text-xs">
               + New
             </button>
           </div>

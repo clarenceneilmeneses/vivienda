@@ -103,8 +103,8 @@ export default function Guests() {
             {!q && "Guests are added automatically when they book."}
           </EmptyState>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto lg:overflow-visible">
+            <table className="admin-table w-full text-sm">
               <thead className="text-left text-xs text-ink-muted">
                 <tr className="border-b border-sand-200">
                   <th className="px-4 py-2.5 font-medium">Name</th>

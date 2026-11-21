@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { addDays, endOfMonth, format, startOfMonth, subMonths } from "date-fns";
+import { addDays, format, startOfMonth, subMonths } from "date-fns";
 import { AlertCircle, ArrowRight, BedDouble, LogIn, LogOut, MessageSquare, TrendingUp, Users, Wallet } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useSettings, useUnits } from "../../lib/queries";
@@ -12,6 +12,7 @@ import { IncomeExpenseChart, type MonthPoint } from "../../components/admin/Char
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
 import { useAllBookings } from "./Bookings";
 import { useInboxUnread } from "../../lib/admin-badges";
+import { useAdminRange } from "../../lib/admin-range";
 
 export default function Dashboard() {
   const { data: settings } = useSettings();
@@ -22,8 +23,23 @@ export default function Dashboard() {
 
   const now = new Date();
   const today = isoDate(now);
-  const monthStart = isoDate(startOfMonth(now));
-  const monthEnd = isoDate(endOfMonth(now));
+  // The top bar's dates. "Month" below means whatever range is picked there.
+  const range = useAdminRange();
+  const monthStart = range.from;
+  const monthEnd = range.to;
+  // The same number of days just before, for the "vs" line.
+  const prevFrom = isoDate(addDays(new Date(`${range.from}T00:00:00`), -range.days));
+  const prevTo = isoDate(addDays(new Date(`${range.from}T00:00:00`), -1));
+  const { data: rangeMoney } = useQuery({
+    queryKey: ["payments", "dashboard-range", prevFrom, range.to],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("payments").select("amount, kind, paid_on").gte("paid_on", prevFrom).lte("paid_on", range.to);
+      if (error) throw error;
+      const sum = (a: string, b: string) =>
+        data.filter((p) => p.paid_on >= a && p.paid_on <= b).reduce((s, p) => s + (p.kind === "refund" ? -1 : 1) * Number(p.amount), 0);
+      return { now: sum(range.from, range.to), before: sum(prevFrom, prevTo) };
+    },
+  });
   const sixMonthsAgo = isoDate(startOfMonth(subMonths(now, 5)));
 
   const { data: money6 } = useQuery({
@@ -55,8 +71,6 @@ export default function Dashboard() {
     return pts;
   }, [money6]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const thisMonth = chart[chart.length - 1];
-  const lastMonth = chart[chart.length - 2];
 
   const stats = useMemo(() => {
     const list = bookings ?? [];
@@ -71,7 +85,7 @@ export default function Dashboard() {
 
     // Occupancy: sold nights this month / (active rooms × days in month).
     const activeUnits = (units ?? []).filter((u) => u.is_active).length;
-    const daysInMonth = Number(monthEnd.slice(8, 10));
+    const daysInMonth = range.days;
     let nights = 0;
     // Stay revenue earned this month: each booking's total, spread over its nights.
     let revenue = 0;
@@ -109,12 +123,13 @@ export default function Dashboard() {
       adr,
       revpar,
     };
-  }, [bookings, units, today, monthStart, monthEnd]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bookings, units, today, monthStart, monthEnd, range.days]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return <Spinner />;
 
+  const income = rangeMoney?.now ?? 0;
   const incomeChange =
-    lastMonth && lastMonth.income > 0 ? Math.round(((thisMonth.income - lastMonth.income) / lastMonth.income) * 100) : null;
+    rangeMoney && rangeMoney.before > 0 ? Math.round(((rangeMoney.now - rangeMoney.before) / rangeMoney.before) * 100) : null;
   const greeting = now.getHours() < 12 ? "Good morning" : now.getHours() < 18 ? "Good afternoon" : "Good evening";
 
   return (
@@ -153,16 +168,16 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatTile
-          label={`Income · ${format(now, "MMM")}`}
+          label={`Income · ${range.name}`}
           icon={<TrendingUp />}
-          value={money(thisMonth?.income ?? 0, true)}
-          sub={incomeChange != null ? `${incomeChange >= 0 ? "+" : ""}${incomeChange}% vs last month` : undefined}
+          value={money(income, true)}
+          sub={incomeChange != null ? `${incomeChange >= 0 ? "+" : ""}${incomeChange}% vs the days before` : undefined}
         />
         <StatTile
           label="Occupancy"
           icon={<BedDouble />}
           value={`${stats.occupancy}%`}
-          sub={`${plural(stats.nights, "night")} sold this month`}
+          sub={`${plural(stats.nights, "night")} sold · ${range.name.toLowerCase()}`}
         />
         <StatTile
           label="In house now"
@@ -184,8 +199,8 @@ export default function Dashboard() {
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader
-            title={`Performance · ${format(now, "MMMM")}`}
-            description="Stays are counted on the nights they fall in. Bookings made counts requests sent this month."
+            title={`Performance · ${range.name}`}
+            description={`${range.label}. Stays count on the nights they fall in; bookings made counts requests sent in these dates.`}
           />
           <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-b-2xl bg-sand-200/80 sm:grid-cols-4">
             <Kpi
@@ -199,7 +214,7 @@ export default function Dashboard() {
               value={stats.nights ? money(stats.adr, true) : "—"}
               sub="ADR: stay income ÷ nights sold"
             />
-            <Kpi label="RevPAR" value={money(stats.revpar, true)} sub="Stay income ÷ nights in month" />
+            <Kpi label="RevPAR" value={money(stats.revpar, true)} sub="Stay income ÷ nights in the dates" />
           </dl>
         </Card>
         <Card className="lg:col-span-2">
@@ -236,7 +251,7 @@ export default function Dashboard() {
           <CardHeader
             title="Arriving in the next 7 days"
             action={
-              <Link to="/admin/calendar" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline">
+              <Link to="/admin/calendar" className="link-action inline-flex items-center gap-1 text-xs">
                 Calendar <ArrowRight className="size-3.5" />
               </Link>
             }
@@ -255,7 +270,7 @@ export default function Dashboard() {
           <CardHeader
             title="Last 6 months"
             action={
-              <Link to="/admin/finance" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline">
+              <Link to="/admin/finance" className="link-action inline-flex items-center gap-1 text-xs">
                 Finance <ArrowRight className="size-3.5" />
               </Link>
             }

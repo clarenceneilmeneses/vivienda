@@ -133,8 +133,8 @@ export function AccountMenu() {
               </>
             )}
             <div className="my-1 h-px bg-sand-200" />
-            <button type="button" onClick={() => void signOut()} className={item}>
-              <LogOut className="size-4 text-ink-muted" /> Sign out
+            <button type="button" onClick={() => void signOut()} className={cn(item, "text-red-700 hover:bg-red-50")}>
+              <LogOut className="size-4" /> Sign out
             </button>
           </div>
         </>

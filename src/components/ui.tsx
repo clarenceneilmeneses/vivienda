@@ -2,6 +2,7 @@ import {
   forwardRef,
   useEffect,
   useId,
+  useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -14,15 +15,28 @@ import { cn } from "../lib/utils";
 import type { BookingStatus } from "../lib/types";
 import { STATUS_LABEL } from "../lib/types";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "accent";
+/**
+ * Buttons say what they do, as in Malaya (2026-10-09):
+ *   success  moves something forward: Confirm, Check in, Record payment, Publish.
+ *   danger   Decline, Cancel, Delete, on the page (red outline). The question
+ *            behind it confirms with danger-solid.
+ *   secondary  everything else with words, Cancel included. The 1px ledge under
+ *            the edge is what makes a white button read as something to press.
+ *   ghost    icon-only buttons, whose icon already says "press me".
+ */
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "danger-solid" | "success" | "accent";
 type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
   primary: "bg-brand-700 text-sand-50 shadow-level-1 hover:bg-brand-700/90 disabled:bg-brand-700/50",
   accent: "bg-brand-700 text-sand-50 shadow-level-2 hover:bg-brand-700/90 disabled:bg-brand-700/50",
-  secondary: "bg-white text-ink border border-sand-300 shadow-level-1 hover:bg-sand-100 disabled:opacity-50",
+  secondary:
+    "bg-white text-ink border border-sand-300 shadow-[0_1px_0_var(--color-sand-300),0_2px_3px_rgb(0_0_0/0.06)] hover:bg-sand-100 disabled:opacity-50",
   ghost: "text-ink-soft hover:bg-sand-100 hover:text-ink disabled:opacity-50",
-  danger: "bg-white text-red-700 border border-red-200 hover:bg-red-50 disabled:opacity-50",
+  danger:
+    "bg-white text-red-700 border border-red-300 shadow-[0_1px_0_rgb(252_165_165),0_2px_3px_rgb(0_0_0/0.06)] hover:bg-red-50 disabled:opacity-50",
+  "danger-solid": "bg-red-600 text-white shadow-level-1 hover:bg-red-700 disabled:opacity-50",
+  success: "bg-emerald-700 text-white shadow-level-1 hover:bg-emerald-800 disabled:opacity-50",
 };
 const sizes: Record<Size, string> = {
   sm: "h-8 px-3 text-sm gap-1.5",
@@ -37,16 +51,19 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = "primary", size = "md", loading, className, children, disabled, type = "button", ...rest },
+  { variant = "primary", size = "md", loading, className, children, disabled, type = "button", title, ...rest },
   ref,
 ) {
+  // An icon-only button says what it does on hover: its aria-label becomes the tooltip.
+  const label = rest["aria-label"];
   return (
     <button
       ref={ref}
       type={type}
       disabled={disabled || loading}
+      title={title ?? (typeof label === "string" ? label : undefined)}
       className={cn(
-        "inline-flex cursor-pointer items-center justify-center rounded-xl font-medium transition-colors disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700",
+        "inline-flex cursor-pointer items-center justify-center rounded-xl font-medium transition-[color,background-color,border-color,transform] active:translate-y-px disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700",
         variants[variant],
         sizes[size],
         className,
@@ -328,37 +345,44 @@ export function Tabs<T extends string>({
 }: {
   value: T;
   onChange: (v: T) => void;
-  items: { value: T; label: string; count?: number }[];
+  /** waiting: an amber count while above zero, for something waiting on you. */
+  items: { value: T; label: string; count?: number; waiting?: boolean }[];
   className?: string;
 }) {
+  // Malaya's chip strip: one white, lifted, fully rounded pill; the open chip a soft fill.
   return (
-    <div className={cn("no-scrollbar flex gap-1 overflow-x-auto", className)} role="tablist">
-      {items.map((it) => (
-        <button
-          key={it.value}
-          role="tab"
-          aria-selected={value === it.value}
-          onClick={() => onChange(it.value)}
-          className={cn(
-            "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors",
-            value === it.value
-              ? "bg-brand-700 text-sand-50 shadow-level-2"
-              : "text-ink-muted hover:bg-sand-100 hover:text-ink",
-          )}
-        >
-          {it.label}
-          {it.count != null && (
-            <span
+    <div className={cn("no-scrollbar max-w-full overflow-x-auto", className)}>
+      <div className="inline-flex items-center gap-0.5 rounded-full border border-sand-200/80 bg-white p-1 shadow-level-1" role="tablist">
+        {items.map((it) => {
+          const on = value === it.value;
+          const amber = it.waiting && (it.count ?? 0) > 0;
+          return (
+            <button
+              key={it.value}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => onChange(it.value)}
               className={cn(
-                "rounded-full px-1.5 text-[11px] leading-4 font-semibold",
-                value === it.value ? "bg-sand-50/20 text-sand-50" : "bg-sand-100 text-ink-soft",
+                "inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[13px] whitespace-nowrap transition-colors",
+                on ? "bg-sand-100 font-medium text-brand-700" : "text-ink-muted hover:bg-sand-100/60 hover:text-ink",
               )}
             >
-              {it.count}
-            </span>
-          )}
-        </button>
-      ))}
+              {it.label}
+              {it.count != null && (
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[11px] leading-none font-semibold tabular-nums",
+                    amber ? "bg-amber-100 text-amber-800" : on ? "bg-white text-brand-700" : "bg-sand-100 text-ink-muted",
+                  )}
+                >
+                  {it.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -462,5 +486,67 @@ export function StatTile({
       </p>
       {sub && <p className="relative mt-1 truncate text-xs text-ink-muted">{sub}</p>}
     </div>
+  );
+}
+
+// ───────────────────────── asking first ─────────────────────────
+
+export interface AskOptions {
+  title: string;
+  description?: ReactNode;
+  /** Worded as the action, never "OK": "Delete booking", "Unsend". */
+  confirmLabel: string;
+  tone?: "danger" | "success" | "primary";
+}
+
+let pending: ((o: AskOptions & { resolve: (v: boolean) => void }) => void) | null = null;
+
+/**
+ * Asks before a red or green button does what it says (Malaya's ConfirmAction).
+ * Resolves true when confirmed. Needs <ConfirmHost /> mounted once.
+ */
+export function ask(o: AskOptions): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!pending) return resolve(window.confirm(o.title));
+    pending({ ...o, resolve });
+  });
+}
+
+export function ConfirmHost() {
+  const [q, setQ] = useState<(AskOptions & { resolve: (v: boolean) => void }) | null>(null);
+  useEffect(() => {
+    pending = setQ;
+    return () => {
+      pending = null;
+    };
+  }, []);
+  if (!q) return null;
+  const close = (v: boolean) => {
+    q.resolve(v);
+    setQ(null);
+  };
+  return (
+    <Modal
+      open
+      size="sm"
+      onClose={() => close(false)}
+      title={q.title}
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => close(false)}>
+            Go back
+          </Button>
+          <Button
+            autoFocus
+            variant={q.tone === "success" ? "success" : q.tone === "primary" ? "primary" : "danger-solid"}
+            onClick={() => close(true)}
+          >
+            {q.confirmLabel}
+          </Button>
+        </>
+      }
+    >
+      {q.description ? <div className="text-sm text-ink-soft">{q.description}</div> : <p className="text-sm text-ink-muted">This can't be undone.</p>}
+    </Modal>
   );
 }

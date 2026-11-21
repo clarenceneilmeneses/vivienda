@@ -40,7 +40,7 @@ export default function AccountSettings() {
             <Button variant="secondary" onClick={() => setPwOpen(true)}>
               <KeyRound className="size-4" /> Change password
             </Button>
-            <Button variant="ghost" onClick={() => void signOut()}>
+            <Button variant="danger" onClick={() => void signOut()}>
               Sign out
             </Button>
           </div>

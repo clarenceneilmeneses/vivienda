@@ -8,6 +8,7 @@ import { money } from "../../lib/format";
 import { slugify } from "../../lib/utils";
 import type { Unit } from "../../lib/types";
 import {
+  ask,
   Badge,
   Button,
   Card,
@@ -202,7 +203,12 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
 
   async function remove() {
     if (!unit) return;
-    if (!confirm(`Delete ${unit.name}? This only works if it has no bookings — otherwise hide it instead.`)) return;
+    const ok = await ask({
+      title: `Delete ${unit.name}?`,
+      description: "This only works if it has no bookings. Otherwise switch off “Show on website” instead.",
+      confirmLabel: "Delete room",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("units").delete().eq("id", unit.id);
     if (error) {
       toast.error(error.code === "23503" ? "This room has bookings. Switch off “Show on website” instead." : errorMessage(error));

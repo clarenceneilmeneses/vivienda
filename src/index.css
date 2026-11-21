@@ -205,3 +205,30 @@
     display: none !important;
   }
 }
+
+/* Words you can click, in the admin (Malaya, 2026-10-22): brand colour and an
+   underline that is always there, soft at rest and solid on hover. Hover-only
+   underlines hid links nobody knew to hover. */
+@utility link-action {
+  color: var(--color-brand-700);
+  font-weight: 500;
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in oklab, var(--color-brand-700) 40%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  &:hover {
+    text-decoration-color: currentColor;
+  }
+}
+
+/* Table headers stay pinned while the page scrolls, on a laptop (Malaya). */
+@media (min-width: 1024px) {
+  .admin-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: white;
+    box-shadow: inset 0 -1px 0 var(--color-sand-200);
+  }
+}

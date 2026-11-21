@@ -30,7 +30,7 @@ import {
   type EmailLog,
   type Payment,
 } from "../../lib/types";
-import { Badge, Button, Modal, Select, Sheet, Spinner, StatusBadge, Textarea } from "../ui";
+import { ask, Badge, Button, Modal, Select, Sheet, Spinner, StatusBadge, Textarea } from "../ui";
 import { BookingForm } from "./BookingForm";
 import { PaymentForm } from "./PaymentForm";
 
@@ -39,13 +39,13 @@ interface Transition {
   label: string;
   icon: typeof CheckCircle2;
   email?: EmailType;
-  variant: "primary" | "secondary" | "danger";
+  variant: "success" | "secondary" | "danger";
   confirm?: string;
 }
 
 const TRANSITIONS: Partial<Record<BookingStatus, Transition[]>> = {
   pending: [
-    { to: "confirmed", label: "Confirm", icon: CheckCircle2, email: "booking_confirmed", variant: "primary" },
+    { to: "confirmed", label: "Confirm", icon: CheckCircle2, email: "booking_confirmed", variant: "success" },
     {
       to: "declined",
       label: "Decline",
@@ -56,7 +56,7 @@ const TRANSITIONS: Partial<Record<BookingStatus, Transition[]>> = {
     },
   ],
   confirmed: [
-    { to: "checked_in", label: "Check in", icon: LogIn, variant: "primary" },
+    { to: "checked_in", label: "Check in", icon: LogIn, variant: "success" },
     {
       to: "cancelled",
       label: "Cancel booking",
@@ -66,7 +66,7 @@ const TRANSITIONS: Partial<Record<BookingStatus, Transition[]>> = {
       confirm: "Cancel this booking? The dates open up again. Refunds are recorded separately under Payments.",
     },
   ],
-  checked_in: [{ to: "checked_out", label: "Check out", icon: LogOut, variant: "primary" }],
+  checked_in: [{ to: "checked_out", label: "Check out", icon: LogOut, variant: "success" }],
 };
 
 export function BookingDrawer({ bookingId, onClose }: { bookingId: string | null; onClose: () => void }) {
@@ -158,14 +158,24 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
   }
 
   async function deletePayment(p: Payment) {
-    if (!confirm(`Delete this ${money(p.amount)} ${p.kind}?`)) return;
+    const ok = await ask({
+      title: `Delete this ${money(p.amount)} ${p.kind}?`,
+      description: `It comes off ${b!.ref}'s ${p.kind === "refund" ? "refunds" : "payments"} and the balance changes.`,
+      confirmLabel: `Delete ${money(p.amount)}`,
+    });
+    if (!ok) return;
     const { error } = await supabase.from("payments").delete().eq("id", p.id);
     if (error) return toast.error(errorMessage(error));
     await qc.invalidateQueries();
   }
 
   async function deleteBooking() {
-    if (!confirm(`Delete ${b!.ref} permanently? Its payments are deleted too. This can't be undone.`)) return;
+    const ok = await ask({
+      title: `Delete ${b!.ref} permanently?`,
+      description: `${b!.guest_name}'s booking and its payments are deleted. This can't be undone.`,
+      confirmLabel: "Delete booking",
+    });
+    if (!ok) return;
     const { error } = await supabase.from("bookings").delete().eq("id", b!.id);
     if (error) return toast.error(errorMessage(error));
     if (b!.receipt_path) await supabase.storage.from("receipts").remove([b!.receipt_path]);
@@ -215,7 +225,7 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
           <Info label="Email">
             {b.guest_email ? (
-              <a href={`mailto:${b.guest_email}`} className="inline-flex items-center gap-1 hover:underline">
+              <a href={`mailto:${b.guest_email}`} className="link-action inline-flex items-center gap-1">
                 <Mail className="size-3.5" /> {b.guest_email}
               </a>
             ) : (
@@ -224,7 +234,7 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
           </Info>
           <Info label="Mobile">
             {b.guest_phone ? (
-              <a href={`tel:${b.guest_phone}`} className="inline-flex items-center gap-1 hover:underline">
+              <a href={`tel:${b.guest_phone}`} className="link-action inline-flex items-center gap-1">
                 <Phone className="size-3.5" /> {b.guest_phone}
               </a>
             ) : (
@@ -425,7 +435,7 @@ function TransitionModal({
             Back
           </Button>
           <Button
-            variant={transition.variant === "danger" ? "danger" : "primary"}
+            variant={transition.variant === "danger" ? "danger-solid" : "success"}
             loading={busy}
             onClick={async () => {
               setBusy(true);
