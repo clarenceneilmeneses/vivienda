@@ -139,7 +139,7 @@ function PublicShell() {
 
       {!onMessages && (
       <footer id="contact" className="scroll-mt-4">
-        <div className="border-t border-sand-300/50 bg-linen text-ink">
+        <div className={cn("bg-linen text-ink", pathname !== "/" && "border-t border-sand-300/50")}>
         <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-14 pb-14 sm:grid-cols-2 sm:px-8 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
           <div>
             <span className="inline-flex items-center gap-3">

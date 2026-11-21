@@ -146,7 +146,10 @@ export default function Home() {
               </div>
             </div>
           </section>
-          <Curve color={ESPRESSO} edge="bottom" flip />
+          {/* Falls straight into the cream footer below. */}
+          <div className="bg-linen">
+            <Curve color={ESPRESSO} edge="bottom" flip />
+          </div>
         </>
       )}
     </>
@@ -164,7 +167,7 @@ function Curve({ color, edge = "top", flip = false, className }: { color: string
   // the paper (with its grain) without a seam. "top": the colour rises from
   // below; "bottom": it falls away into the page.
   return (
-    <div aria-hidden className={cn("relative h-10 w-full sm:h-16 lg:h-20", edge === "top" ? "-mb-px" : "-mt-px", className)}>
+    <div aria-hidden className={cn("relative h-10 w-full sm:h-16 lg:h-20", edge === "top" ? "-mb-0.5" : "-mt-0.5", className)}>
       <svg
         viewBox="0 0 1440 80"
         preserveAspectRatio="none"
