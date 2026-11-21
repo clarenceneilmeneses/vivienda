@@ -21,6 +21,7 @@ const AdminLayout = lazy(() => import("./components/admin/AdminLayout"));
 const Login = lazy(() => import("./pages/admin/Login"));
 const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
 const Bookings = lazy(() => import("./pages/admin/Bookings"));
+const BookingPage = lazy(() => import("./pages/admin/BookingPage"));
 const Calendar = lazy(() => import("./pages/admin/Calendar"));
 const Guests = lazy(() => import("./pages/admin/Guests"));
 const Finance = lazy(() => import("./pages/admin/Finance"));
@@ -62,6 +63,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="inbox" element={<Inbox />} />
           <Route path="bookings" element={<Bookings />} />
+          <Route path="bookings/:id" element={<BookingPage />} />
           <Route path="reviews" element={<Reviews />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="guests" element={<Guests />} />

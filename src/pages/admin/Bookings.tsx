@@ -1,13 +1,24 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, Download, Plus, Search } from "lucide-react";
+import { ClipboardList, Download, Plus } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { normalizeBooking } from "../../lib/queries";
 import { downloadCsv, isoDate, money, plural, stayRange } from "../../lib/format";
 import { SOURCE_LABEL, STATUS_LABEL, type BookingSummary } from "../../lib/types";
-import { Button, Card, EmptyState, Input, PageHeader, Spinner, StatusBadge, Tabs } from "../../components/ui";
-import { BookingDrawer } from "../../components/admin/BookingDrawer";
+import {
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  SearchField,
+  Spinner,
+  StatGrid,
+  StatTile,
+  StatusBadge,
+  Tabs,
+  Toolbar,
+} from "../../components/ui";
 import { BookingForm } from "../../components/admin/BookingForm";
 import { stayInRange, useAdminRange } from "../../lib/admin-range";
 
@@ -29,7 +40,9 @@ export function useAllBookings() {
 }
 
 export default function Bookings() {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  // Old links (?id=) from booking emails open the booking's own page.
   const openId = params.get("id");
   const [view, setView] = useState<View>((params.get("view") as View) || "action");
   const [q, setQ] = useState("");
@@ -63,12 +76,16 @@ export default function Bookings() {
     );
   }, [groups, view, q]);
 
-  function open(id: string | null) {
-    const next = new URLSearchParams(params);
-    if (id) next.set("id", id);
-    else next.delete("id");
-    setParams(next, { replace: true });
+  function open(id: string) {
+    navigate(`/admin/bookings/${id}`);
   }
+
+  const soon = isoDate(new Date(Date.now() + 7 * 86_400_000));
+  const arriving = groups.upcoming.filter((b) => b.check_in >= today && b.check_in <= soon);
+  const owed = (all ?? []).filter((b) => ["confirmed", "checked_in", "checked_out"].includes(b.status) && b.balance > 0.009);
+  const owedTotal = owed.reduce((s, b) => s + b.balance, 0);
+
+  if (openId) return <Navigate to={`/admin/bookings/${openId}`} replace />;
 
   function exportCsv() {
     downloadCsv(`bookings-${today}.csv`, [
@@ -113,32 +130,49 @@ export default function Bookings() {
         }
       />
 
-      <Card>
-        <div className="flex flex-col gap-3 px-4 pt-3 sm:flex-row sm:items-end sm:justify-between">
+      <StatGrid>
+        <StatTile
+          label="Needs action"
+          value={String(groups.action.length)}
+          tone={groups.action.length ? "warn" : "default"}
+          sub={groups.action.length ? "Requests to confirm" : "Nothing waiting"}
+        />
+        <StatTile
+          label="Arriving · 7 days"
+          value={String(arriving.length)}
+          sub={plural(arriving.reduce((s, b) => s + b.guests_count, 0), "guest")}
+        />
+        <StatTile
+          label="In house"
+          value={String(groups.inhouse.length)}
+          sub={plural(groups.inhouse.reduce((s, b) => s + b.guests_count, 0), "guest")}
+        />
+        <StatTile
+          label="Unpaid balances"
+          value={money(owedTotal, true)}
+          tone={owedTotal > 0 ? "warn" : "default"}
+          sub={plural(owed.length, "booking")}
+        />
+      </StatGrid>
+
+      <Toolbar>
           <Tabs
             value={view}
             onChange={setView}
             items={[
-              { value: "action", label: "Needs action", count: groups.action.length },
+              { value: "action", label: "Needs action", count: groups.action.length, waiting: true },
               { value: "upcoming", label: "Upcoming", count: groups.upcoming.length },
               { value: "inhouse", label: "In house", count: groups.inhouse.length },
               { value: "past", label: "Past", count: groups.past.length },
               { value: "cancelled", label: "Cancelled", count: groups.cancelled.length },
               { value: "all", label: "All", count: groups.all.length },
             ]}
-            className="border-b-0"
           />
-          <div className="relative mb-2 sm:w-64">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
-            <Input
-              placeholder="Search guest, ref, phone"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="h-9 pl-9"
-            />
-          </div>
-        </div>
-        <div className="border-t border-sand-200">
+          <SearchField value={q} onChange={setQ} placeholder="Search guest, ref, phone" />
+      </Toolbar>
+
+      <Card className="overflow-hidden">
+        <div>
           {isLoading ? (
             <Spinner />
           ) : rows.length === 0 ? (
@@ -211,7 +245,6 @@ export default function Bookings() {
         </div>
       </Card>
 
-      <BookingDrawer bookingId={openId} onClose={() => open(null)} />
       <BookingForm open={adding} onClose={() => setAdding(false)} onSaved={(id) => open(id)} />
     </>
   );

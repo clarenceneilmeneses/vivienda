@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import {
@@ -30,7 +30,7 @@ import {
   type EmailLog,
   type Payment,
 } from "../../lib/types";
-import { ask, Badge, Button, Modal, Select, Sheet, Spinner, StatusBadge, Textarea } from "../ui";
+import { ask, Badge, Button, Modal, Select, Spinner, StatTile, StatusBadge, Textarea } from "../ui";
 import { BookingForm } from "./BookingForm";
 import { PaymentForm } from "./PaymentForm";
 
@@ -69,19 +69,23 @@ const TRANSITIONS: Partial<Record<BookingStatus, Transition[]>> = {
   checked_in: [{ to: "checked_out", label: "Check out", icon: LogOut, variant: "success" }],
 };
 
+/**
+ * Opening a booking from anywhere in the admin goes to its own page
+ * (/admin/bookings/:id), as in Malaya: the booking and the work side by side,
+ * not a drawer over the list.
+ */
 export function BookingDrawer({ bookingId, onClose }: { bookingId: string | null; onClose: () => void }) {
-  return (
-    <Sheet
-      open={Boolean(bookingId)}
-      onClose={onClose}
-      title={<span className="text-sm font-medium text-ink-muted">Booking</span>}
-    >
-      {bookingId && <DrawerBody id={bookingId} onClose={onClose} />}
-    </Sheet>
-  );
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!bookingId) return;
+    navigate(`/admin/bookings/${bookingId}`);
+    onClose();
+  }, [bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
 }
 
-function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
+/** The booking page's body: stat cards, then the booking on the left and the money on the right. */
+export function BookingDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const qc = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
@@ -186,8 +190,32 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
 
   const transitions = TRANSITIONS[b.status] ?? [];
 
+  const due = (() => {
+    const d = new Date(`${b.check_in}T00:00:00`);
+    d.setDate(d.getDate() - 1);
+    return d;
+  })();
+
   return (
-    <div className="space-y-4 p-5">
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatTile
+          label="Total"
+          value={money(b.total, true)}
+          sub={b.discount > 0 ? `${money(b.discount, true)} off` : b.pet_total > 0 ? `incl. ${money(b.pet_total, true)} pets` : "For the whole stay"}
+        />
+        <StatTile label="Paid" value={money(b.paid, true)} sub={plural(payments?.filter((p) => p.kind === "payment").length ?? 0, "payment")} />
+        <StatTile
+          label="Balance"
+          value={money(Math.max(b.balance, 0), true)}
+          tone={b.balance > 0.009 && !["cancelled", "declined"].includes(b.status) ? "warn" : "default"}
+          sub={b.balance > 0.009 ? `Due by ${format(due, "MMM d")}` : "Settled"}
+        />
+        <StatTile label="Stay" value={plural(b.nights, "night")} sub={stayRange(b.check_in, b.check_out)} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="min-w-0 space-y-4">
       <div className="rounded-xl border border-sand-200 bg-white p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -270,12 +298,14 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
         )}
         <NotesEditor booking={b} />
       </div>
+      </div>
 
+      <div className="space-y-4">
       <div className="rounded-xl border border-sand-200 bg-white">
         <div className="flex items-center justify-between border-b border-sand-200 px-5 py-3">
           <h3 className="text-sm font-semibold">Payments</h3>
-          <Button size="sm" variant="secondary" onClick={() => setPayOpen(true)}>
-            <Plus className="size-4" /> Record
+          <Button size="sm" variant="success" onClick={() => setPayOpen(true)}>
+            <Plus className="size-4" /> Record payment
           </Button>
         </div>
         <div className="px-5 py-3">
@@ -390,6 +420,8 @@ function DrawerBody({ id, onClose }: { id: string; onClose: () => void }) {
           </Button>
         </div>
       )}
+      </div>
+      </div>
 
       <BookingForm open={editOpen} onClose={() => setEditOpen(false)} booking={b} />
       <PaymentForm open={payOpen} onClose={() => setPayOpen(false)} booking={b} />

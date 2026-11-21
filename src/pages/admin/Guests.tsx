@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, Search, Users } from "lucide-react";
+import { Download, Users } from "lucide-react";
 import { errorMessage, supabase } from "../../lib/supabase";
-import { downloadCsv, isoDate, money, prettyDate, stayRange } from "../../lib/format";
+import { downloadCsv, isoDate, money, plural, prettyDate, stayRange } from "../../lib/format";
 import { STAY_STATUSES, type BookingSummary, type Guest } from "../../lib/types";
 import {
   Button,
@@ -13,9 +13,13 @@ import {
   Input,
   Modal,
   PageHeader,
+  SearchField,
   Spinner,
+  StatGrid,
+  StatTile,
   StatusBadge,
   Textarea,
+  Toolbar,
 } from "../../components/ui";
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
 import { useAllBookings } from "./Bookings";
@@ -68,6 +72,10 @@ export default function Guests() {
   }, [rows, q]);
 
   const current = rows.find((g) => g.id === selected) ?? null;
+  const repeat = rows.filter((g) => g.stays >= 2).length;
+  const withAccount = rows.filter((g) => (g as unknown as { user_id?: string | null }).user_id).length;
+  const lifetime = rows.reduce((s, g) => s + g.spent, 0);
+  const stayed = rows.filter((g) => g.stays > 0).length;
 
   return (
     <>
@@ -89,13 +97,23 @@ export default function Guests() {
           </Button>
         }
       />
-      <Card>
-        <div className="border-b border-sand-200 p-3">
-          <div className="relative sm:w-72">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
-            <Input placeholder="Search name, email, phone" value={q} onChange={(e) => setQ(e.target.value)} className="h-9 pl-9" />
-          </div>
-        </div>
+      <StatGrid>
+        <StatTile label="Guests on file" value={String(rows.length)} sub={`${stayed} have stayed`} />
+        <StatTile
+          label="Repeat guests"
+          value={String(repeat)}
+          sub={stayed ? `${Math.round((repeat / stayed) * 100)}% came back` : "No stays yet"}
+        />
+        <StatTile label="With an account" value={String(withAccount)} sub="Can message you from the site" />
+        <StatTile label="Paid, all time" value={money(lifetime, true)} sub={stayed ? `${money(lifetime / stayed, true)} per guest` : undefined} />
+      </StatGrid>
+
+      <Toolbar>
+        <span className="text-sm text-ink-muted">{plural(filtered.length, "guest")}</span>
+        <SearchField value={q} onChange={setQ} placeholder="Search name, email, phone" />
+      </Toolbar>
+
+      <Card className="overflow-hidden">
         {isLoading ? (
           <Spinner />
         ) : filtered.length === 0 ? (

@@ -30,6 +30,7 @@ import {
   Spinner,
   StatTile,
   Tabs,
+  Toolbar,
 } from "../../components/ui";
 import { IncomeExpenseChart, SERIES, ShareBars, type MonthPoint } from "../../components/admin/Charts";
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
@@ -233,8 +234,7 @@ export default function Finance() {
         </Card>
       )}
 
-      <Card className="mt-4">
-        <div className="flex flex-wrap items-end justify-between gap-2 px-4 pt-2">
+      <Toolbar className="mt-6">
           <Tabs
             value={tab}
             onChange={setTab}
@@ -246,9 +246,7 @@ export default function Finance() {
             ]}
           />
           <Button
-            variant="ghost"
-            size="sm"
-            className="mb-1.5"
+            variant="secondary"
             onClick={() => {
               const stamp = range.from === range.to ? range.from : `${range.from}_${range.to}`;
               if (tab === "payments")
@@ -279,8 +277,10 @@ export default function Finance() {
           >
             <Download className="size-4" /> Export CSV
           </Button>
-        </div>
-        <div className="border-t border-sand-200">
+      </Toolbar>
+
+      <Card className="overflow-hidden">
+        <div>
           {tab === "payments" &&
             (periodPayments.length === 0 ? (
               <EmptyState icon={<Receipt className="size-8" />} title="No payments in this period">

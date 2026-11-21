@@ -19,6 +19,8 @@ import {
   Modal,
   PageHeader,
   Spinner,
+  StatGrid,
+  StatTile,
   Switch,
   Textarea,
 } from "../../components/ui";
@@ -38,6 +40,7 @@ export default function Units() {
           </Button>
         }
       />
+      {units && units.length > 0 && <UnitStats units={units} />}
       {isLoading ? (
         <Spinner />
       ) : !units?.length ? (
@@ -348,5 +351,25 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
         <ErrorBox>{error}</ErrorBox>
       </form>
     </Modal>
+  );
+}
+
+/** The rates and rules at a glance, for the listing(s) guests can book. */
+function UnitStats({ units }: { units: Unit[] }) {
+  const live = units.filter((u) => u.is_active);
+  const list = live.length ? live : units;
+  const low = (f: (u: Unit) => number) => Math.min(...list.map(f));
+  const weekday = low((u) => u.base_rate);
+  const weekend = low((u) => u.weekend_rate ?? u.base_rate);
+  const sleeps = Math.max(...list.map((u) => u.max_guests));
+  const minStay = low((u) => u.min_nights);
+  const pets = list.some((u) => u.max_pets > 0);
+  return (
+    <StatGrid>
+      <StatTile label="On the website" value={`${live.length} of ${units.length}`} sub={live.length === units.length ? "All listed" : "Some hidden"} />
+      <StatTile label="Weekday rate" value={money(weekday, true)} sub={`${money(weekend, true)} Fri–Sat`} />
+      <StatTile label="Sleeps up to" value={String(sleeps)} sub={pets ? "Pets allowed" : "No pets"} />
+      <StatTile label="Minimum stay" value={`${minStay} night${minStay === 1 ? "" : "s"}`} sub="Longer on chosen dates: Calendar" />
+    </StatGrid>
   );
 }

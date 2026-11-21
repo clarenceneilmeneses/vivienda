@@ -241,7 +241,7 @@ export function buildEmail(type: EmailType, b: BookingRow, s: SettingsRow, siteU
                 (b.receipt_path ? " · <strong>receipt uploaded</strong>" : " · no receipt yet"),
             ) +
             (b.special_requests ? p(`Requests: ${esc(b.special_requests)}`) : ""),
-          { href: `${siteUrl}/admin/bookings?id=${b.id}`, label: "Review booking" },
+          { href: `${siteUrl}/admin/bookings/${b.id}`, label: "Review booking" },
         ),
       };
     case "booking_confirmed":

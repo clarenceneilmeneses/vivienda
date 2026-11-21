@@ -1,8 +1,8 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, format, startOfMonth, subMonths } from "date-fns";
-import { AlertCircle, ArrowRight, BedDouble, LogIn, LogOut, MessageSquare, TrendingUp, Users, Wallet } from "lucide-react";
+import { ArrowRight, BedDouble, TrendingUp, Users, Wallet } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useSettings, useUnits } from "../../lib/queries";
 import { compactMoney, isoDate, money, plural, stayRange } from "../../lib/format";
@@ -12,6 +12,7 @@ import { IncomeExpenseChart, type MonthPoint } from "../../components/admin/Char
 import { BookingDrawer } from "../../components/admin/BookingDrawer";
 import { useAllBookings } from "./Bookings";
 import { useInboxUnread } from "../../lib/admin-badges";
+import { ActionStrip } from "../../components/admin/ActionStrip";
 import { useAdminRange } from "../../lib/admin-range";
 
 export default function Dashboard() {
@@ -141,30 +142,12 @@ export default function Dashboard() {
         <h1 className="font-display text-2xl font-medium sm:text-[28px]">{greeting}</h1>
       </div>
 
-      {(unreadMessages > 0 || stats.pending.length > 0 || stats.departures.length > 0 || stats.arrivingToday.length > 0) && (
-        <div className="mb-4 space-y-2">
-          {unreadMessages > 0 && (
-            <Alert to="/admin/inbox" icon={<MessageSquare className="size-4" />}>
-              {plural(unreadMessages, "guest")} waiting for a reply in the inbox
-            </Alert>
-          )}
-          {stats.pending.length > 0 && (
-            <Alert to="/admin/bookings?view=action">
-              {plural(stats.pending.length, "booking request")} waiting for you to confirm
-            </Alert>
-          )}
-          {stats.arrivingToday.length > 0 && (
-            <Alert to="/admin/bookings?view=upcoming" icon={<LogIn className="size-4" />}>
-              {plural(stats.arrivingToday.length, "guest")} due to check in today
-            </Alert>
-          )}
-          {stats.departures.length > 0 && (
-            <Alert to="/admin/bookings?view=inhouse" icon={<LogOut className="size-4" />}>
-              {plural(stats.departures.length, "guest")} due to check out
-            </Alert>
-          )}
-        </div>
-      )}
+      <ActionStrip
+        unread={unreadMessages}
+        requests={stats.pending}
+        arrivals={stats.arrivingToday}
+        departures={stats.departures}
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatTile
@@ -308,18 +291,6 @@ function ArrivalRow({ b, today, onOpen }: { b: BookingSummary; today: string; on
   );
 }
 
-function Alert({ to, children, icon }: { to: string; children: ReactNode; icon?: ReactNode }) {
-  return (
-    <Link
-      to={to}
-      className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 shadow-level-1 transition-colors hover:bg-amber-100"
-    >
-      {icon ?? <AlertCircle className="size-4" />}
-      <span className="flex-1">{children}</span>
-      <ArrowRight className="size-4" />
-    </Link>
-  );
-}
 
 function Kpi({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (

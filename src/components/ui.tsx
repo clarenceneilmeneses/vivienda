@@ -10,7 +10,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Search as SearchIcon, X } from "lucide-react";
 import { cn } from "../lib/utils";
 import type { BookingStatus } from "../lib/types";
 import { STATUS_LABEL } from "../lib/types";
@@ -549,4 +549,65 @@ export function ConfirmHost() {
       {q.description ? <div className="text-sm text-ink-soft">{q.description}</div> : <p className="text-sm text-ink-muted">This can't be undone.</p>}
     </Modal>
   );
+}
+
+// ───────────────────────── list pages ─────────────────────────
+
+/**
+ * Every list page's toolbar, in one layout (Malaya, 2026-10-20): the chip
+ * strip on the left, search and the rest on the right, all the same height,
+ * sitting on the page above the table rather than crammed into its card.
+ */
+export function Toolbar({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cn("mb-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between", className)}>{children}</div>
+  );
+}
+
+/** A search box shaped like the chip strip beside it: a white, lifted pill. */
+export function SearchField({
+  value,
+  onChange,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  className?: string;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex h-[42px] items-center gap-2 rounded-full border border-sand-200/80 bg-white pr-1.5 pl-4 shadow-level-1 focus-within:border-brand-700/50 sm:w-72",
+        className,
+      )}
+    >
+      <SearchIcon className="size-4 shrink-0 text-ink-muted" aria-hidden />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        className="h-full min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-muted/70 focus:outline-none"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="grid size-7 cursor-pointer place-items-center rounded-full text-ink-muted hover:bg-sand-100"
+          aria-label="Clear search"
+          title="Clear search"
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
+    </label>
+  );
+}
+
+/** The row of stat cards at the top of a page. */
+export function StatGrid({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4", className)}>{children}</div>;
 }

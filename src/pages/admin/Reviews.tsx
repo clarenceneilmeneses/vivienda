@@ -106,10 +106,15 @@ export default function Reviews() {
         }
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatTile label="Average rating" value={avg ? `★ ${avg.toFixed(2)}` : "—"} sub={`${published.length} published`} />
         <StatTile label="Waiting for you" value={groups.pending.length} tone={groups.pending.length ? "warn" : "default"} />
-        <StatTile label="Facebook recommendations" value={REVIEWS.length} sub="Shown alongside, from lib/site.ts" />
+        <StatTile
+          label="From other platforms"
+          value={(rows ?? []).filter((r) => (r.source ?? "website") !== "website").length}
+          sub="Airbnb, Google, Facebook"
+        />
+        <StatTile label="Facebook recommendations" value={REVIEWS.length} sub="Shown beside the reviews" />
       </div>
 
       <Tabs
