@@ -172,9 +172,9 @@ export function Verdict({ rating, recommends, className }: { rating: number | nu
   );
 }
 
-export function TestimonialCard({ t }: { t: Testimonial }) {
+export function TestimonialCard({ t, className }: { t: Testimonial; className?: string }) {
   return (
-    <figure className="flex h-full flex-col rounded-2xl border border-sand-200/60 bg-white p-6 shadow-level-2">
+    <figure className={cn("flex h-full flex-col rounded-2xl border border-sand-200/60 bg-white p-6 shadow-level-2", className)}>
       <div className="flex items-start justify-between gap-3">
         <Quote className="size-6 rotate-180 fill-brand-700 text-brand-700" aria-hidden />
         <SourceLogo source={t.source} className="size-5" />

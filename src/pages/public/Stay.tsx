@@ -4,7 +4,6 @@ import { addDays } from "date-fns";
 import {
   BadgeCheck,
   CalendarClock,
-  CheckCircle2,
   ChevronDown,
   Clock,
   Grid3X3,
@@ -41,6 +40,7 @@ import { Spinner } from "../../components/ui";
 import { PartyPicker, partyFromParams, partyLabel, partyQuery, type Party } from "../../components/public/PartyPicker";
 import { averageRating, unitPhotos } from "../../components/public/StayBits";
 import { TestimonialCard, toTestimonials } from "../../components/public/Reviews";
+import { amenityIcon, ROOMS } from "../../components/public/HomeSections";
 import { useGuestUi } from "../../components/public/GuestContext";
 import { usePublishedReviews } from "../../lib/guest";
 import { useAuth } from "../../lib/auth";
@@ -144,6 +144,7 @@ export default function Stay() {
   const datedMinimums = [...(minimums ?? new Map<string, number>())].filter(([d]) => d >= today).length;
 
   return (
+    <div className="bg-linen">
     <div className="mx-auto max-w-7xl px-4 pt-4 pb-28 sm:px-8 lg:pb-16">
       <nav aria-label="Breadcrumb" className="mb-4 text-sm text-ink-muted">
         <Link to="/" className="hover:text-brand-700">
@@ -188,7 +189,9 @@ export default function Stay() {
       </div>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-5">
+          {/* The name and the headline facts, on a card of their own. */}
+          <div className="rounded-3xl border border-sand-200/60 bg-white p-5 shadow-level-1 sm:p-7">
           <div className="flex items-start justify-between gap-3">
             <h1 className="font-display text-3xl font-semibold text-brand-700 sm:text-4xl">{unit.name}</h1>
             <button
@@ -220,10 +223,11 @@ export default function Stay() {
             )}
           </p>
 
-          <div className="mt-6 grid gap-5 border-y border-sand-200/80 py-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-sand-200/80">
+          <div className="mt-6 grid gap-5 border-t border-sand-200/80 pt-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-sand-200/80">
             <Highlight icon={<Waves />} title="Private pool" text="Adult and kids pool, exclusive for your group." />
             <Highlight icon={<BadgeCheck />} title="For family or tropa" text="Karaoke, billiards, bonfire and BBQ included." />
             <Highlight icon={<Wifi />} title="Stay connected" text="PLDT WiFi, smart TV, free Netflix & YouTube." />
+          </div>
           </div>
 
           <Block title="About this stay">
@@ -242,26 +246,38 @@ export default function Stay() {
           <Block title="Sleeping arrangements">
             <div className="grid gap-3 sm:grid-cols-2">
               {SLEEPING.map((r) => (
-                <div key={r.room} className="rounded-2xl border border-sand-200/80 p-5">
-                  <BedDouble className="size-6 text-brand-700" />
-                  <p className="mt-3 font-semibold text-ink">{r.room}</p>
+                <div key={r.room} className="overflow-hidden rounded-2xl border border-sand-200/80">
+                  {ROOMS.find((x) => x.name === r.room) && (
+                    <img src={ROOMS.find((x) => x.name === r.room)!.photo} alt={r.room} loading="lazy" className="aspect-[16/10] w-full object-cover" />
+                  )}
+                  <div className="p-5">
+                  <p className="flex items-center gap-2 font-semibold text-ink">
+                    <BedDouble className="size-5 text-brand-700" /> {r.room}
+                  </p>
                   <ul className="mt-1.5 space-y-1 text-sm text-ink-muted">
                     {r.beds.map((b) => (
                       <li key={b}>{b}</li>
                     ))}
                   </ul>
+                  </div>
                 </div>
               ))}
             </div>
           </Block>
 
           <Block title="Amenities">
-            <ul className="grid gap-x-8 gap-y-3 text-sm text-ink sm:grid-cols-2">
-              {amenities.map((a) => (
-                <li key={a} className="flex items-center gap-2.5">
-                  <CheckCircle2 className="size-4 shrink-0 fill-brand-700 text-white" /> {a}
-                </li>
-              ))}
+            <ul className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm text-ink sm:grid-cols-3">
+              {amenities.map((a) => {
+                const Icon = amenityIcon(a);
+                return (
+                  <li key={a} className="flex items-center gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700">
+                      <Icon className="size-5" strokeWidth={1.7} />
+                    </span>
+                    <span className="leading-snug">{a}</span>
+                  </li>
+                );
+              })}
             </ul>
           </Block>
 
@@ -307,14 +323,14 @@ export default function Stay() {
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 {testimonials.slice(0, 6).map((t) => (
-                  <TestimonialCard key={t.id} t={t} />
+                  <TestimonialCard key={t.id} t={t} className="bg-linen/50 shadow-none" />
                 ))}
               </div>
             </Block>
           )}
 
           <Block title="Your host">
-            <div className="flex flex-col gap-6 rounded-3xl bg-sand-100 p-6 sm:flex-row sm:items-center sm:p-8">
+            <div className="flex flex-col gap-6 rounded-2xl bg-linen/70 p-6 sm:flex-row sm:items-center sm:p-8">
               <div className="flex items-center gap-4 sm:w-64 sm:shrink-0 sm:flex-col sm:items-start">
                 <span className="relative">
                   <img src="/images/logo-192.png" alt="" className="size-20 rounded-full shadow-level-2" />
@@ -558,6 +574,7 @@ export default function Stay() {
         </div>
       )}
     </div>
+    </div>
   );
 }
 
@@ -625,8 +642,8 @@ function Highlight({ icon, title, text }: { icon: ReactNode; title: string; text
 
 function Block({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
-    <section id={title.toLowerCase()} className="scroll-mt-24 border-b border-sand-200/80 py-8 last:border-b-0">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <section id={title.toLowerCase()} className="scroll-mt-24 rounded-3xl border border-sand-200/60 bg-white p-5 shadow-level-1 sm:p-7">
+      <div className="mb-5 flex items-center justify-between gap-3">
         <h2 className="font-display text-xl font-semibold text-brand-700">{title}</h2>
         {aside}
       </div>

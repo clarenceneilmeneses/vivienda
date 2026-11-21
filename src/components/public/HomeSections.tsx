@@ -4,11 +4,15 @@ import {
   ArrowRight,
   BedDouble,
   CheckCircle2,
+  Clapperboard,
   Clock,
   CookingPot,
   Dices,
+  Drumstick,
+  Flame,
   Grid3X3,
   MapPin,
+  Mic,
   Refrigerator,
   ThumbsUp,
   Tv,
@@ -141,8 +145,25 @@ function Pill({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode 
   );
 }
 
+// Each fact-sheet amenity with its own small picture (the listing page uses these).
+const AMENITY_ICON: [RegExp, LucideIcon][] = [
+  [/pool/i, Waves],
+  [/karaoke/i, Mic],
+  [/bonfire/i, Flame],
+  [/bbq|grill/i, Drumstick],
+  [/refrigerator|fridge/i, Refrigerator],
+  [/stove/i, CookingPot],
+  [/utensil/i, Utensils],
+  [/dining/i, UtensilsCrossed],
+  [/billiard|badminton|board/i, Dices],
+  [/wifi/i, Wifi],
+  [/smart tv|tv/i, Tv],
+  [/netflix|youtube/i, Clapperboard],
+];
+export const amenityIcon = (a: string): LucideIcon => AMENITY_ICON.find(([re]) => re.test(a))?.[1] ?? CheckCircle2;
+
 /** The two rooms, shown by their photographs. Bed counts from the fact sheet. */
-const ROOMS = [
+export const ROOMS = [
   { name: "A-House", photo: PHOTOS.aframeLoft.src, beds: "2 double beds + sofa bed" },
   { name: "Stilt Room", photo: PHOTOS.bunkRoom.src, beds: "3 double-deck beds + sofa bed" },
 ];
