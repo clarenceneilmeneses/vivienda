@@ -224,6 +224,7 @@ function BookingFormInner({
     >
       <form id="booking-form" onSubmit={save} className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-3">
+          {(units?.length ?? 0) > 1 && (
           <Field label="Room" className="sm:col-span-2">
             {(id) => (
               <Select
@@ -243,6 +244,7 @@ function BookingFormInner({
               </Select>
             )}
           </Field>
+          )}
           <Field label="Guests" hint={unit ? `Head count, fits ${unit.max_guests}` : undefined}>
             {(id) => (
               <Input

@@ -163,7 +163,7 @@ export default function Calendar() {
 
   if (isLoading) return <Spinner />;
   if (!unit) {
-    return <EmptyState title="Add the resort first">Create the listing under Rooms &amp; rates, then come back.</EmptyState>;
+    return <EmptyState title="Add the resort first">Create the listing under Resort &amp; rates, then come back.</EmptyState>;
   }
 
   const monthDays = days.filter((d) => d.startsWith(monthKey));

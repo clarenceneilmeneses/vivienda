@@ -85,7 +85,7 @@ const NAV: { label: string; tabs: Tab[] }[] = [
   {
     label: "Property",
     tabs: [
-      { to: "/admin/units", label: "Rooms & rates", icon: BedDouble },
+      { to: "/admin/units", label: "Resort & rates", icon: BedDouble },
       { to: "/admin/settings", label: "Settings", icon: Settings2, subTabs: SETTINGS_TABS },
     ],
   },

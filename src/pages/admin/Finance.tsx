@@ -374,7 +374,7 @@ export default function Finance() {
             options={[{ value: "any", label: "All categories" }, ...EXPENSE_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))]}
           />
         )}
-        {tab !== "expenses" && <FilterSelect label="Room" value={room} onChange={setRoom} options={roomOptions} />}
+        {tab !== "expenses" && (units?.length ?? 0) > 1 && <FilterSelect label="Room" value={room} onChange={setRoom} options={roomOptions} />}
         <ClearFilters active={filtering} onClear={clearFilters} />
       </ToolbarGroup>
 

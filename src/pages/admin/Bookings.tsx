@@ -188,12 +188,14 @@ export default function Bookings() {
           <SearchField value={q} onChange={setQ} placeholder="Search guest, ref, phone" />
       </Toolbar>
       <ToolbarGroup className="mb-3">
-        <FilterSelect
-          label="Room"
-          value={room}
-          onChange={setRoom}
-          options={[{ value: "any", label: "All rooms" }, ...(units ?? []).map((u) => ({ value: u.id, label: u.name }))]}
-        />
+        {(units?.length ?? 0) > 1 && (
+          <FilterSelect
+            label="Room"
+            value={room}
+            onChange={setRoom}
+            options={[{ value: "any", label: "All rooms" }, ...(units ?? []).map((u) => ({ value: u.id, label: u.name }))]}
+          />
+        )}
         <FilterSelect
           label="Source"
           value={source}

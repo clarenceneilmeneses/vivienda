@@ -1,10 +1,23 @@
 import { useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, BedDouble, ImagePlus, Pencil, Plus, Trash2, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BedDouble,
+  CalendarDays,
+  ExternalLink,
+  ImagePlus,
+  PawPrint,
+  Pencil,
+  Plus,
+  Trash2,
+  Users,
+} from "lucide-react";
+import { Link } from "react-router-dom";
 import { errorMessage, photoUrl, supabase } from "../../lib/supabase";
 import { useUnits } from "../../lib/queries";
-import { money } from "../../lib/format";
+import { money, plural } from "../../lib/format";
 import { slugify } from "../../lib/utils";
 import type { Unit } from "../../lib/types";
 import {
@@ -28,6 +41,26 @@ import {
 export default function Units() {
   const { data: units, isLoading } = useUnits();
   const [editing, setEditing] = useState<Unit | "new" | null>(null);
+
+  // One resort: a page about the resort, not a list of one room.
+  if (units?.length === 1) {
+    const u = units[0];
+    return (
+      <>
+        <PageHeader
+          title="Resort & rates"
+          description="What guests see and pay. Fri & Sat rates apply to those nights; set special prices per day on the Calendar."
+          actions={
+            <Button onClick={() => setEditing(u)}>
+              <Pencil className="size-4" /> Edit details
+            </Button>
+          }
+        />
+        <ResortProfile unit={u} onEdit={() => setEditing(u)} />
+        {editing && <UnitModal unit={u} single onClose={() => setEditing(null)} />}
+      </>
+    );
+  }
 
   return (
     <>
@@ -105,7 +138,126 @@ export default function Units() {
   );
 }
 
-function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }) {
+/** The one listing, laid out the way guests meet it: photos, then rates and rules. */
+function ResortProfile({ unit: u, onEdit }: { unit: Unit; onEdit: () => void }) {
+  const weekend = u.weekend_rate ?? u.base_rate;
+  const thumbs = u.photos.slice(1, 5);
+  const more = u.photos.length - 1 - thumbs.length;
+  return (
+    <Card className="overflow-hidden">
+      <div className="grid lg:grid-cols-5">
+        <div className="bg-sand-100 lg:col-span-3">
+          <div className="aspect-[16/10]">
+            {u.photos[0] ? (
+              <img src={photoUrl(u.photos[0])} alt="" className="size-full object-cover" />
+            ) : (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="flex size-full cursor-pointer flex-col items-center justify-center gap-2 text-sm text-ink-muted hover:text-ink"
+              >
+                <ImagePlus className="size-8" /> Add photos
+              </button>
+            )}
+          </div>
+          {thumbs.length > 0 && (
+            <div className="grid grid-cols-4 gap-1 p-1">
+              {thumbs.map((p, i) => (
+                <div key={p} className="relative aspect-[4/3] overflow-hidden rounded-md">
+                  <img src={photoUrl(p)} alt="" className="size-full object-cover" />
+                  {i === thumbs.length - 1 && more > 0 && (
+                    <span className="absolute inset-0 grid place-items-center bg-ink/50 text-sm font-medium text-white">
+                      +{more}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col p-6 lg:col-span-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {u.is_active ? (
+              <Badge className="bg-emerald-50 text-emerald-800">Live on the website</Badge>
+            ) : (
+              <Badge className="bg-amber-50 text-amber-800">Hidden: not bookable online</Badge>
+            )}
+          </div>
+          <h2 className="mt-2 font-display text-2xl font-medium text-ink">{u.name}</h2>
+          {u.description && <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-ink-soft">{u.description}</p>}
+
+          <p className="eyebrow mt-6 mb-2">Rates per night</p>
+          <dl className="grid grid-cols-3 gap-2">
+            <Rate label="Sun – Thu" value={money(u.base_rate, true)} />
+            <Rate label="Fri & Sat" value={money(weekend, true)} />
+            <Rate label="Extra guest" value={money(u.extra_guest_fee, true)} />
+          </dl>
+
+          <p className="eyebrow mt-6 mb-2">House rules</p>
+          <ul className="space-y-2 text-sm text-ink-soft">
+            <li className="flex items-center gap-2">
+              <Users className="size-4 text-brand-700/70" />
+              {plural(u.capacity, "guest")} included, up to {u.max_guests}
+            </li>
+            <li className="flex items-center gap-2">
+              <CalendarDays className="size-4 text-brand-700/70" />
+              Minimum stay {plural(u.min_nights, "night")}
+              <Link to="/admin/calendar" className="text-xs text-brand-700 underline-offset-2 hover:underline">
+                longer on chosen dates
+              </Link>
+            </li>
+            <li className="flex items-center gap-2">
+              <PawPrint className="size-4 text-brand-700/70" />
+              {u.max_pets > 0
+                ? `Up to ${plural(u.max_pets, "pet")}${u.pet_fee > 0 ? ` · ${money(u.pet_fee, true)} each` : ""}`
+                : "No pets"}
+            </li>
+          </ul>
+
+          {u.amenities.length > 0 && (
+            <>
+              <p className="eyebrow mt-6 mb-2">Amenities</p>
+              <div className="flex flex-wrap gap-1.5">
+                {u.amenities.map((a) => (
+                  <Badge key={a}>{a}</Badge>
+                ))}
+              </div>
+            </>
+          )}
+
+          {u.tour_video_url && (
+            <a
+              href={u.tour_video_url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline"
+            >
+              <ExternalLink className="size-3.5" /> Video tour
+            </a>
+          )}
+
+          <div className="mt-auto pt-6">
+            <Button variant="secondary" className="w-full" onClick={onEdit}>
+              <Pencil className="size-4" /> Edit rates, rules & photos
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function Rate({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-sand-50 px-3 py-2.5 ring-1 ring-sand-200/80 ring-inset">
+      <dt className="text-xs text-ink-muted">{label}</dt>
+      <dd className="mt-0.5 font-display text-lg text-ink tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+function UnitModal({ unit, single, onClose }: { unit: Unit | null; single?: boolean; onClose: () => void }) {
   const qc = useQueryClient();
   const [name, setName] = useState(unit?.name ?? "");
   const [description, setDescription] = useState(unit?.description ?? "");
@@ -199,7 +351,7 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
     // Photos removed from the list are deleted from storage too.
     const removed = (unit?.photos ?? []).filter((p) => !photos.includes(p) && !/^https?:/.test(p));
     if (removed.length) await supabase.storage.from("unit-photos").remove(removed);
-    toast.success(unit ? "Room saved" : "Room added");
+    toast.success(single ? "Saved" : unit ? "Room saved" : "Room added");
     qc.invalidateQueries();
     onClose();
   }
@@ -229,10 +381,10 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
       open
       onClose={onClose}
       size="lg"
-      title={unit ? `Edit ${unit.name}` : "Add room"}
+      title={single ? "Edit resort details" : unit ? `Edit ${unit.name}` : "Add room"}
       footer={
         <>
-          {unit && (
+          {unit && !single && (
             <Button variant="danger" className="mr-auto" onClick={remove}>
               <Trash2 className="size-4" /> Delete
             </Button>
@@ -247,7 +399,7 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
       }
     >
       <form id="unit-form" onSubmit={save} className="space-y-5">
-        <Field label="Name" hint="e.g. Garden Villa, Family Room">
+        <Field label="Name" hint={single ? "The name guests see on the website" : "e.g. Garden Villa, Family Room"}>
           {(id) => <Input id={id} value={name} onChange={(e) => setName(e.target.value)} autoFocus={!unit} />}
         </Field>
         <Field label="Description" optional>
@@ -272,9 +424,11 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
           <Field label="Max guests" hint="With extra guest fee">
             {(id) => <Input id={id} type="number" min={1} value={maxGuests} onChange={(e) => setMaxGuests(e.target.value)} />}
           </Field>
-          <Field label="Order" hint="Lower shows first">
-            {(id) => <Input id={id} type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />}
-          </Field>
+          {!single && (
+            <Field label="Order" hint="Lower shows first">
+              {(id) => <Input id={id} type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />}
+            </Field>
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
@@ -346,7 +500,7 @@ function UnitModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }
           checked={isActive}
           onChange={setIsActive}
           label="Show on website"
-          description="Hidden rooms can't be booked online but keep their history."
+          description={single ? "When off, guests can't book online. Your bookings stay as they are." : "Hidden rooms can't be booked online but keep their history."}
         />
         <ErrorBox>{error}</ErrorBox>
       </form>
