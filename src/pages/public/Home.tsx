@@ -270,9 +270,9 @@ function Hero({
         {/* The place, in white frames, with one guest's words beside it. */}
         <div className="relative pb-6 sm:pb-10">
           <div className="grid h-[320px] grid-cols-5 grid-rows-2 gap-3 sm:h-[460px] lg:h-[520px]">
-            <Framed photo={PHOTOS.poolAframe} className="col-span-3 row-span-2" onClick={onPhotos} priority />
-            <Framed photo={PHOTOS.billiards} className="col-span-2" onClick={onPhotos} />
-            <Framed photo={PHOTOS.aframeLoft} className="col-span-2" onClick={onPhotos} />
+            <Framed photo={PHOTOS.trellis} className="col-span-3 row-span-2" onClick={onPhotos} priority />
+            <Framed photo={PHOTOS.poolWaterfall} className="col-span-2" onClick={onPhotos} />
+            <Framed photo={PHOTOS.garden} className="col-span-2" onClick={onPhotos} />
           </div>
         </div>
       </div>
